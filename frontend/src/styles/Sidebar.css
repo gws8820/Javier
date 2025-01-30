@@ -1,0 +1,179 @@
+/* src/styles/Sidebar.css */
+
+.sidebar {
+    display: flex;
+    flex-direction: column;
+    width: 280px;
+    height: 100vh;
+    box-sizing: border-box;
+    background-color: rgb(252, 252, 252);
+    z-index: 2;
+    position: fixed;
+    left: 0;
+    top: 0; /* 상단 고정 */
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+}
+
+.sidebar::-webkit-scrollbar {
+    display: none;
+}
+
+/* 사이드바 닫기 버튼 스타일 */
+.hide-sidebar {
+    cursor: pointer;
+    font-size: 19px;
+    color: #333;
+}
+
+/* Sidebar 열기 버튼 */
+.expand-sidebar {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 19px;
+    color: #333;
+    display: flex;
+    align-items: center;
+    margin-right: 18px;
+}
+
+/* 버튼 스타일 */
+.sidebar button {
+    width: 100%;
+    color: rgb(0, 0, 0);
+    background-color: transparent;
+    cursor: pointer;
+    border: none;
+    transition: background-color 0.2s ease-in-out;
+    font-size: 16px;
+    text-align: left;
+}
+
+.sidebar h4 {
+    margin: 0;
+}
+
+.newconv-container {
+    border-bottom: 1px solid rgb(240, 240, 240);
+}
+
+.new-conversation {
+    padding: 20px;
+}
+
+.sidebar button:hover {
+    background-color: #f0f0f0;
+}
+
+.user-container {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    border-top: 1px solid rgb(240, 240, 240);
+    position: relative;
+}
+
+.user-button {
+    display: flex;
+    justify-content: space-between; /* for potential icon later */
+    align-items: center;
+    width: 100%;
+    padding: 25px 30px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 16px;
+    text-align: left;
+}
+
+.user-button:hover {
+    background-color: #f0f0f0;
+}
+
+.conversation-container {
+    box-sizing: border-box;
+    flex-grow: 1;
+    list-style-type: none;
+    overflow-y: auto;
+}
+
+.conversation-list {
+    margin: 0;
+    padding: 10px;
+}
+
+.conversation-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 20px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.2s ease-in-out;
+}
+
+.conversation-item:hover {
+    background-color: #f0f0f0;
+}
+
+.active-conversation {
+    background-color: #e0e0e0; /* 더 명확한 활성화 표시를 위해 색상 변경 */
+}
+
+.conversation-text {
+    font-size: 14px;
+    color: #333;
+}
+
+.delete-icon {
+    opacity: 0;
+    cursor: pointer;
+    margin-left: 10px;
+    transition: opacity 0.2s ease-in-out;
+}
+
+.conversation-item:hover .delete-icon {
+    opacity: 1;
+}
+
+.user-dropdown {
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    right: 0;
+    background-color: rgb(255, 255, 255);
+    border-radius: 5px;
+    z-index: 999;
+}
+
+.user-dropdown button {
+    text-align: center;
+    width: 100%;
+    cursor: pointer;
+}
+
+.user-dropdown button:hover {
+    background-color: #f0f0f0;
+}
+
+.user-billing {
+    padding: 20px;
+    text-align: center;
+    border-bottom: 1px solid rgb(240, 240, 240);
+}
+
+.logout-button {
+    width: 100%;
+    text-align: center;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 20px;
+    font-size: 16px;
+    color: #333;
+}
+
+.logout-button:hover {
+    background-color: #f0f0f0;
+}

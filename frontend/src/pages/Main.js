@@ -1,0 +1,144 @@
+// src/pages/Main.js
+import React from "react";
+import { useState, useContext, useRef, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
+import { FaPaperPlane, FaSpinner } from "react-icons/fa";
+import { SettingsContext } from "../contexts/SettingsContext";
+import { motion } from "framer-motion";
+import axios from "axios";
+import modelsData from '../model.json';
+import "../styles/Common.css";
+
+
+function Main({ addConversation }) { // addConversation props로 받음
+  const navigate = useNavigate();
+  const [inputText, setInputText] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [isComposing, setIsComposing] = useState(false);
+  const textAreaRef = useRef(null);
+
+  const {
+    model,
+    temperature,
+    systemMessage,
+  } = useContext(SettingsContext);
+
+  const models = modelsData.models;
+
+  const handleCreateConversation = useCallback(async () => {
+    if (!inputText.trim()) {
+      alert("메시지를 입력해주세요.");
+      return;
+    }
+
+    try {
+      const selectedModel = models.find((m) => m.model_name === model);
+      if (!selectedModel) {
+        alert("선택한 모델이 유효하지 않습니다.");
+        return;
+      }
+
+      setInputText("");
+      setIsLoading(true);
+
+      const response = await axios.post(
+        `${process.env.REACT_APP_FASTAPI_URL}/new_conversation`,
+        {
+          user_message: inputText,
+          model: model,
+          temperature: temperature,
+          system_message: systemMessage,
+        },
+        { withCredentials: true }
+      );
+
+      const { conversation_id, alias } = response.data;
+      if (conversation_id && alias) {
+        const newConversation = { conversation_id, alias };
+        addConversation(newConversation);
+        navigate(`/chat/${conversation_id}`, {
+          state: {
+            initialMessage: inputText,
+          },
+          replace: false,
+        });
+      } else {
+        alert("새로운 대화를 생성하는 데 필요한 정보를 받지 못했습니다.");
+      }
+    } catch (error) {
+      alert("새로운 대화를 생성하는 데 실패했습니다.");
+      console.error(error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [inputText, models, model, temperature, systemMessage, navigate, addConversation]);
+
+  const adjustTextareaHeight = useCallback(() => {
+    const textarea = textAreaRef.current;
+    if (textarea) {
+      textarea.style.height = "auto"; // 높이를 초기화
+      const newHeight = Math.min(textarea.scrollHeight, 300); // 최대 높이 300px
+      textarea.style.height = `${newHeight}px`;
+    }
+  }, []);
+
+  useEffect(() => {
+    adjustTextareaHeight();
+  }, [inputText, adjustTextareaHeight]);
+
+  const handleKeyDown = (event) => {
+    if (event.key === 'Enter' && !event.shiftKey && !isComposing) {
+      event.preventDefault();
+      handleCreateConversation();
+    }
+  };
+
+  return (
+    <motion.div
+      className="container"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.3, delay: 0.2 }}
+    >
+      <motion.div
+        className="welcome-message"
+        initial={{ y: 5 }}
+        animate={{ y: 0 }}
+        exit={{ y: 5 }}
+        transition={{ duration: 0.3, delay: 0.2 }}
+      >
+        안녕하세요, 무엇을 도와드릴까요?
+      </motion.div>
+      <motion.div
+        className="input-area main-input-area"
+        initial={{ y: 5 }}
+        animate={{ y: 0 }}
+        exit={{ y: 5 }}
+        transition={{ duration: 0.3, delay: 0.2 }}
+      >
+        <textarea
+          ref={textAreaRef}
+          className="message-input"
+          placeholder="오늘 어떤 일이 있었나요?"
+          value={inputText}
+          onChange={(e) => setInputText(e.target.value)}
+          rows={4}
+          onKeyDown={handleKeyDown}
+          onCompositionStart={() => setIsComposing(true)}
+          onCompositionEnd={() => setIsComposing(false)}
+        />
+        <button
+          onClick={handleCreateConversation}
+          className="send-button"
+          disabled={isLoading}
+          aria-label="메시지 전송"
+        >
+          {isLoading ? <FaSpinner className="spinner" /> : <FaPaperPlane />}
+        </button>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+export default Main;
