@@ -1,6 +1,6 @@
 // src/components/Header.js
 import React, { useState, useContext, useRef, useEffect } from "react";
-import { FaSlidersH, FaCode, FaChevronRight } from "react-icons/fa";
+import { BsSliders, BsCodeSlash, BsLayoutTextSidebar } from "react-icons/bs";
 import { SettingsContext } from "../contexts/SettingsContext";
 import { AnimatePresence, motion } from "framer-motion";
 import modelsData from '../model.json';
@@ -56,7 +56,7 @@ function Header({ toggleSidebar, isSidebarVisible }) {
       <div className="header-left">
         {!isSidebarVisible && (
           <button className="expand-sidebar" onClick={toggleSidebar} title="사이드바 열기">
-            <FaChevronRight />
+            <BsLayoutTextSidebar style={{ strokeWidth: 0.3 }} />
           </button>
         )}
 
@@ -65,16 +65,16 @@ function Header({ toggleSidebar, isSidebarVisible }) {
         </div>
 
         <div className="header-icon temperature-icon">
-          <FaSlidersH
+          <BsSliders
             onClick={() => {
               if (!isFixedTemp) {
                 setIsTempSliderOpen(!isTempSliderOpen);
                 setIsSystemMessageOpen(false);
               }
             }}
-            title="온도 (랜덤 확률) 설정"
+            title="온도 (랜덤 확률)"
             className={isFixedTemp ? "disabled" : ""}
-            style={{fontSize: "18px"}}
+            style={{ fontSize: "18px", strokeWidth: 0.3 }}
           />
 
           <AnimatePresence>
@@ -87,15 +87,26 @@ function Header({ toggleSidebar, isSidebarVisible }) {
                 exit={{ x: -10, opacity: 0, translateY: "-50%" }}
                 transition={{ duration: 0.2 }}
               >
-                <input
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.1"
-                  value={temperature}
-                  onChange={(e) => updateTemperature(parseFloat(e.target.value))}
-                  className="temperature-slider"
-                />
+                <div className="slider-wrapper" style={{ position: 'relative', width: '100%' }}>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.1"
+                    value={temperature}
+                    onChange={(e) => updateTemperature(parseFloat(e.target.value))}
+                    className="temperature-slider"
+                  />
+                  <div
+                    className="slider-value"
+                    style={{
+                      left: `${temperature * 100}%`,
+                      transform: 'translateX(-50%)',
+                    }}
+                  >
+                    {temperature}
+                  </div>
+                </div>
               </motion.div>
             )}
           </AnimatePresence>
@@ -104,7 +115,7 @@ function Header({ toggleSidebar, isSidebarVisible }) {
 
       <div className="header-right">
         <div className="header-icon system-message-icon">
-          <FaCode
+          <BsCodeSlash
             onClick={() => {
               if (!isFixedInstruction) {
                 setIsSystemMessageOpen(!isSystemMessageOpen);
@@ -113,6 +124,7 @@ function Header({ toggleSidebar, isSidebarVisible }) {
             }}
             title="지시어 설정"
             className={isFixedInstruction ? "disabled" : ""}
+            style={{ strokeWidth: 0.3 }}
           />
           <AnimatePresence>
             {isSystemMessageOpen && (

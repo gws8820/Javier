@@ -75,8 +75,8 @@ def get_alias(prompt: str) -> str:
     completion = client.chat.completions.create(
         model="gpt-4o-mini",
         temperature=0.1,
-        max_tokens=40,
-        messages=[{"role": "user", "content": f"다음 메세지를 20글자 내로 요약해 별칭을 만들어 줘. 문장부호는 쓰지 마. 메세지: [{prompt}]"}],
+        max_tokens=20,
+        messages=[{"role": "user", "content": f"다음 메세지를 20글자 내로 요약해서 별칭을 만들어. 질문에 응답하지 말고 별칭만 만들어. 문장부호를 쓰지 마. 메세지: [{prompt}]"}],
     )
     return completion.choices[0].message.content
 

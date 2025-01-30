@@ -6,36 +6,18 @@
     width: 280px;
     height: 100vh;
     box-sizing: border-box;
+    border-right: 1px solid rgb(240, 240, 240);
     background-color: rgb(252, 252, 252);
     z-index: 2;
     position: fixed;
     left: 0;
-    top: 0; /* 상단 고정 */
+    top: 0;
     -ms-overflow-style: none;  /* IE and Edge */
     scrollbar-width: none;  /* Firefox */
 }
 
 .sidebar::-webkit-scrollbar {
     display: none;
-}
-
-/* 사이드바 닫기 버튼 스타일 */
-.hide-sidebar {
-    cursor: pointer;
-    font-size: 19px;
-    color: #333;
-}
-
-/* Sidebar 열기 버튼 */
-.expand-sidebar {
-    background: none;
-    border: none;
-    cursor: pointer;
-    font-size: 19px;
-    color: #333;
-    display: flex;
-    align-items: center;
-    margin-right: 18px;
 }
 
 /* 버튼 스타일 */
@@ -50,45 +32,66 @@
     text-align: left;
 }
 
-.sidebar h4 {
-    margin: 0;
-}
-
-.newconv-container {
-    border-bottom: 1px solid rgb(240, 240, 240);
-}
-
-.new-conversation {
-    padding: 20px;
-}
-
 .sidebar button:hover {
     background-color: #f0f0f0;
 }
 
-.user-container {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    border-top: 1px solid rgb(240, 240, 240);
-    position: relative;
+.Logo {
+    font-size: 25px;
+    font-weight: 500;
+    color: #333;
 }
 
-.user-button {
-    display: flex;
-    justify-content: space-between; /* for potential icon later */
-    align-items: center;
-    width: 100%;
-    padding: 25px 30px;
+/* 사이드바 닫기 버튼 스타일 */
+.hide-sidebar {
+    cursor: pointer;
+    font-size: 18px;
+}
+
+/* Sidebar 열기 버튼 */
+.expand-sidebar {
     background: none;
     border: none;
     cursor: pointer;
-    font-size: 16px;
-    text-align: left;
+    font-size: 18px;
+    color: #333;
+    display: flex;
+    align-items: center;
+    margin-right: 14px;
 }
 
-.user-button:hover {
+
+.newconv-container {
+    margin-top: 12px;
+    border-bottom: 1px solid rgb(240, 240, 240);
+}
+
+.new-conversation {
+    padding: 10px 20px;
+    font-weight: 500;
+}
+
+.user-container {
+    position: relative;
+
+}
+
+.user-info {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    padding: 25px 20px;
+    gap: 10px;
+    border-top: 1px solid rgb(240, 240, 240);
+    cursor: pointer;
+}
+
+.user-info:hover {
     background-color: #f0f0f0;
+}
+
+.user-icon {
+    font-size: 28px;
 }
 
 .conversation-container {
@@ -117,8 +120,15 @@
     background-color: #f0f0f0;
 }
 
+.conversation-text {
+    width: 90%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: none;
+}
+
 .active-conversation {
-    background-color: #e0e0e0; /* 더 명확한 활성화 표시를 위해 색상 변경 */
+    background-color: #e0e0e0;
 }
 
 .conversation-text {

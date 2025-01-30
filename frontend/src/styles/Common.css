@@ -69,16 +69,24 @@
     border-radius: 4px;
 }
 
+.chat-message h3 {
+    margin-bottom: 0;
+}
+
+.chat-message ol {
+    margin: 0;
+}
+
 /* 공통 버튼 스타일 */
 .send-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
     margin-right: 5px;
     padding: 15px;
     font-size: 18px;
     border: none;
     cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
     background-color: transparent;
     color: rgb(0, 0, 0);
     border-radius: 24px;
@@ -89,14 +97,45 @@
     background-color: #f0f0f0;
 }
 
-/* Spinner animation */
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
+/* send-button 내 로딩 아이콘 컨테이너 */
+.loading-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
 }
 
 .spinner {
+    font-size: 20px;
     animation: spin 1s linear infinite;
+    transition: opacity 0.2s ease, visibility 0.2s ease;
+}
+
+.stop-icon {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    font-size: 15px;
+    opacity: 0;
+    visibility: hidden;
+    transform: translate(-50%, -50%);
+    transition: opacity 0.2s ease, visibility 0.2s ease;
+}
+
+.send-button:hover .spinner {
+    opacity: 0;
+    visibility: hidden;
+}
+
+.send-button:hover .stop-icon {
+    display: block;
+    opacity: 1;
+    visibility: visible;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
 }
 
 /* 반응형 디자인 */

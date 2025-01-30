@@ -1,7 +1,8 @@
 // src/pages/Chat.js
-import React, { useState, useEffect, useCallback, useRef, useContext } from "react";
+import React, { useState, useEffect, useLayoutEffect, useCallback, useRef, useContext } from "react";
 import { useParams, useLocation } from "react-router-dom";
-import { FaPaperPlane, FaSpinner } from "react-icons/fa";
+import { FaPaperPlane, FaStop } from "react-icons/fa";
+import { ImSpinner8 } from "react-icons/im";
 import { SettingsContext } from "../contexts/SettingsContext";
 import { motion } from "framer-motion";
 import axios from "axios";
@@ -33,7 +34,8 @@ function Chat() {
     systemMessage,
     updateModel,
     updateTemperature,
-    updateInstruction
+    updateInstruction,
+    INFERENCE_MODELS
   } = useContext(SettingsContext);
 
   const models = modelsData.models;
@@ -69,6 +71,10 @@ function Chat() {
         if (!selectedModel) {
           throw new Error("선택한 모델이 유효하지 않습니다.");
         }
+
+        if (INFERENCE_MODELS.includes(selectedModel.model_name)) {
+          updateAssistantMessage("생각 중...");
+        };
 
         const response = await fetch(
           `${process.env.REACT_APP_FASTAPI_URL}${selectedModel.endpoint}`,
@@ -142,7 +148,7 @@ function Chat() {
         abortControllerRef.current = null; // 추가된 부분
       }
     },
-    [conversation_id, model, models, temperature, systemMessage, updateAssistantMessage]
+    [conversation_id, model, models, temperature, systemMessage, updateAssistantMessage, INFERENCE_MODELS]
   );
   
   useEffect(() => {
@@ -220,7 +226,7 @@ function Chat() {
     return () => container.removeEventListener('scroll', handleScroll);
   }, [scrollToBottom]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     scrollToBottom();
   }, [messages, scrollToBottom]);
 
@@ -263,15 +269,22 @@ function Chat() {
           className="send-button"
           onClick={() => {
             if (isLoading) {
-              abortControllerRef.current?.abort(); // 추가된 기능
+              abortControllerRef.current?.abort();
             } else {
               sendMessage(inputText);
             }
           }}
-          disabled={!inputText.trim() && !isLoading} // 수정된 부분
+          disabled={!inputText.trim() && !isLoading}
           aria-label={isLoading ? "전송 중단" : "메시지 전송"}
         >
-          {isLoading ? <FaSpinner className="spinner" /> : <FaPaperPlane />}
+          {isLoading ? (
+            <div className="loading-container">
+              <ImSpinner8 className="spinner" />
+              <FaStop className="stop-icon" />
+            </div>
+          ) : (
+            <FaPaperPlane />
+          )}
         </button>
       </motion.div>
     </motion.div>

@@ -1,7 +1,9 @@
 // src/components/Sidebar.js
 import React, { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { FaTimes, FaChevronLeft } from "react-icons/fa";
+import { FaUserCircle } from "react-icons/fa";
+import { LiaTimesSolid } from "react-icons/lia";
+import { BsLayoutTextSidebar } from "react-icons/bs";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 import "../styles/Sidebar.css";
@@ -89,17 +91,16 @@ function Sidebar({ toggleSidebar, isSidebarVisible, conversations, loading, erro
             transition={{ duration: 0.3, ease: "easeInOut" }}
         >
             <div className="header">
-                <div className="Logo"><h3>Javier</h3></div>
-                <FaChevronLeft
+                <div className="Logo">Javier</div>
+                <BsLayoutTextSidebar
                     className="hide-sidebar"
                     onClick={toggleSidebar}
                     title="사이드바 닫기"
+                    style={{ strokeWidth: 0.3 }}
                 />
             </div>
             <div className="newconv-container">
-                <button onClick={() => navigate("/")} className="new-conversation">
-                    <h4>새 대화 시작</h4>
-                </button>
+                <button onClick={() => navigate("/")} className="new-conversation">새 대화 시작</button>
             </div>
             <div className="conversation-container">
                 {loading ? (
@@ -121,7 +122,7 @@ function Sidebar({ toggleSidebar, isSidebarVisible, conversations, loading, erro
                                     onClick={() => handleNavigate(conv.conversation_id)}
                                 >
                                     <span className="conversation-text">{conv.alias}</span>
-                                    <FaTimes
+                                    <LiaTimesSolid
                                         className="delete-icon"
                                         onClick={(e) => {
                                             e.stopPropagation();
@@ -136,19 +137,20 @@ function Sidebar({ toggleSidebar, isSidebarVisible, conversations, loading, erro
                 )}
             </div>
             <div className="user-container">
-                <button onClick={toggleDropdown} className="user-button">
-                    <h4>{userInfo?.name}</h4>
-                </button>
+                <div className="user-info" onClick={toggleDropdown}>
+                    <FaUserCircle className="user-icon"/>
+                    <div className="user-name">{userInfo?.name}</div>
+                </div>
                 <AnimatePresence>
                     {isDropdownOpen && (
                         <motion.div
                             className="user-dropdown"
-                            initial={{ opacity: 0, y: 20 }}
+                            initial={{ opacity: 0, y: 10 }}
                             animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: 20 }}
-                            transition={{ duration: 0.2, ease: "easeOut" }}
+                            exit={{ opacity: 0, y: 10 }}
+                            transition={{ duration: 0.3, ease: "easeOut" }}
                         >
-                            <div className="user-billing"><h4>{userInfo?.billing}$</h4></div>
+                            <div className="user-billing">{userInfo?.billing}$ 사용됨</div>
                             <button onClick={handleLogout} className="logout-button">
                                 로그아웃
                             </button>

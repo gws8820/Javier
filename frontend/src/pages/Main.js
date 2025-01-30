@@ -2,7 +2,8 @@
 import React from "react";
 import { useState, useContext, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { FaPaperPlane, FaSpinner } from "react-icons/fa";
+import { FaPaperPlane, FaStop } from "react-icons/fa";
+import { ImSpinner8 } from "react-icons/im";
 import { SettingsContext } from "../contexts/SettingsContext";
 import { motion } from "framer-motion";
 import axios from "axios";
@@ -10,7 +11,7 @@ import modelsData from '../model.json';
 import "../styles/Common.css";
 
 
-function Main({ addConversation }) { // addConversation props로 받음
+function Main({ addConversation }) {
   const navigate = useNavigate();
   const [inputText, setInputText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -131,10 +132,17 @@ function Main({ addConversation }) { // addConversation props로 받음
         <button
           onClick={handleCreateConversation}
           className="send-button"
-          disabled={isLoading}
-          aria-label="메시지 전송"
+          disabled={!inputText.trim() && !isLoading}
+          aria-label={isLoading ? "전송 중단" : "메시지 전송"}
         >
-          {isLoading ? <FaSpinner className="spinner" /> : <FaPaperPlane />}
+          {isLoading ? (
+            <div className="loading-container">
+              <ImSpinner8 className="spinner" />
+              <FaStop className="stop-icon" />
+            </div>
+          ) : (
+            <FaPaperPlane />
+          )}
         </button>
       </motion.div>
     </motion.div>

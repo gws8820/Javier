@@ -4,6 +4,7 @@ export const SettingsContext = createContext();
 
 const FIXED_TEMP_MODELS = ["o1-preview", "o1-mini"];
 const FIXED_INSTRUCTION_MODELS = ["o1-preview", "o1-mini"];
+const INFERENCE_MODELS = ["o1-preview", "o1-mini", "gemini-2.0-flash-thinking-exp-01-21", "deepseek-r1"];
 
 export const SettingsProvider = ({ children }) => {
   const [model, setModel] = useState("gpt-4o");
@@ -48,6 +49,7 @@ export const SettingsProvider = ({ children }) => {
         updateInstruction,
         FIXED_TEMP_MODELS,
         FIXED_INSTRUCTION_MODELS,
+        INFERENCE_MODELS
       }}
     >
       {children}
