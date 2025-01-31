@@ -1,0 +1,60 @@
+.container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.logo {
+    font-size: 40px;
+    font-weight: 500;
+}
+
+.logo p {
+    margin: 20px 0;
+}
+
+.input-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.field {
+    margin-top: 10px;
+    padding: 0px 16px;
+    width: 300px;
+    height: 50px;
+    border-width: 1px;
+    border-radius: 5px;
+    box-sizing: border-box;
+}
+
+.continue {
+    margin-top: 30px;
+    font-size: 15px;
+    border: none;
+    cursor: pointer;
+    background-color: rgb(240, 240, 240);
+    transition: background-color 0.3s ease;
+}
+
+.continue:hover {
+    background-color: rgb(225, 225, 225);
+}
+
+.footer {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+}
+
+.route {
+    margin-bottom: 1px;
+    font-size: 15px;
+    font-weight: 500;
+    background-color: transparent;
+    border: none;
+    cursor: pointer;
+}

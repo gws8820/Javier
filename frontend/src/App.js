@@ -14,7 +14,7 @@ import "./styles/Common.css"; // CSS 파일 임포트
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(null);
-  const [isSidebarVisible, setIsSidebarVisible] = useState(true);
+  const [isSidebarVisible, setIsSidebarVisible] = useState(false);
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -106,7 +106,7 @@ function AppContent({ isLoggedIn, isSidebarVisible, toggleSidebar, conversations
           loading={loading}
           error={error}
           deleteConversation={deleteConversation}
-          setError={setError} // setError 전달
+          setError={setError}
         />
       )}
       <motion.div

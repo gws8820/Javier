@@ -1,6 +1,8 @@
 import axios from "axios";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
+import "../styles/Auth.css";
 
 function Register() {
   const [name, setName] = useState("");
@@ -19,14 +21,26 @@ function Register() {
   }
 
   return (
-    <div>
-      <h2>회원가입</h2>
-      <input type="text" placeholder="이름" value={name} onChange={(e) => setName(e.target.value)} />
-      <input type="email" placeholder="이메일" value={email} onChange={(e) => setEmail(e.target.value)} />
-      <input type="password" placeholder="비밀번호" value={password} onChange={(e) => setPassword(e.target.value)} />
-      <button onClick={handleRegister}>회원가입</button>
-      <p>이미 계정이 있으신가요? <a href="/login">로그인</a></p>
-    </div>
+    <motion.div
+      className="container"
+      initial={{ y: 20, opacity: 0 }}
+      animate={{ y: 0, opacity: 1 }}
+      transition={{ duration: 0.4 }}
+    >
+      <div className="logo">
+        <p>Javier</p>
+      </div>
+      <div className="input-container">
+      <input className="name field" type="name" placeholder="이름" value={name} onChange={(e) => setName(e.target.value)} />
+        <input className="id field" type="email" placeholder="이메일" value={email} onChange={(e) => setEmail(e.target.value)} />
+        <input className="password field" type="password" placeholder="비밀번호" value={password} onChange={(e) => setPassword(e.target.value)} />
+        <button className="continue field" onClick={handleRegister}>회원가입</button>
+      </div>
+      <div className="footer">
+        <p>이미 가입하셨나요?</p>
+        <button className="route" onClick={() => navigate("/login")}>로그인</button>
+      </div>
+    </motion.div>
   );
 }
 
