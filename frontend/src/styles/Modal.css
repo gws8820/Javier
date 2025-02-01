@@ -1,0 +1,45 @@
+/* Modal.css */
+.modal-overlay {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(20px);
+}
+
+.modal {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    max-width: 80%;
+    padding: 40px 60px;
+    gap: 6px;
+    background: #fff;
+    border-radius: 10px;
+}
+
+.modal-content {
+    margin: 20px 0;
+    font-size: 20px;
+}
+
+.confirm {
+    padding: 15px 60px;
+    font-size: 16px;
+    border: 1px solid rgb(240, 240, 240);
+    border-radius: 5px;
+    cursor: pointer;
+    background: transparent;
+    transition: background-color 0.3s ease;
+}
+
+.confirm:hover {
+    background-color: rgb(240, 240, 240);
+}

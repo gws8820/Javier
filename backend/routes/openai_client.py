@@ -24,13 +24,13 @@ class ChatRequest(BaseModel):
     user_message: str
 
 class ApiSettings(BaseModel):
-    admin_role: str = "assistant"
+    admin_role: str = "system"
     api_key: str
     base_url: str = ""
 
 def get_response(request: ChatRequest, settings: ApiSettings, user: User = Depends(get_current_user)):
     conversation_data = collection.find_one({"user_id": user.user_id, "conversation_id": request.conversation_id})
-    conversation = conversation_data["conversation"] if conversation_data else []
+    conversation = conversation_data["conversation"][-20:] if conversation_data else []
     conversation.append({"role": "user", "content": request.user_message})
     
     formatted_messages = (
@@ -39,21 +39,25 @@ def get_response(request: ChatRequest, settings: ApiSettings, user: User = Depen
     )
 
     def event_generator():
+        response = ""
         try:
-            client = OpenAI(api_key=settings.api_key, base_url=settings.base_url if settings.base_url else None) 
+            client = OpenAI(api_key=settings.api_key, base_url=settings.base_url if settings.base_url else None)
             stream = client.chat.completions.create(
                 model=request.model,
                 temperature=request.temperature,
                 messages=formatted_messages,
                 stream=True
             )
-            response = ""
             for chunk in stream:
                 content = chunk.choices[0].delta.content or ""
                 response += content
                 yield f"data: {json.dumps({'content': content})}\n\n"
-            
-            conversation.append({"role": "assistant", "content": response})
+            yield "event: end\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+        finally:
+            if response:
+                conversation.append({"role": "assistant", "content": response})
             collection.update_one(
                 {"user_id": user.user_id, "conversation_id": request.conversation_id},
                 {"$set": {
@@ -64,9 +68,6 @@ def get_response(request: ChatRequest, settings: ApiSettings, user: User = Depen
                 }},
                 upsert=True
             )
-            yield "event: end\n\n"
-        except Exception as e:
-            yield f"data: {json.dumps({'error': str(e)})}\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 

@@ -32,6 +32,29 @@ function Header({ toggleSidebar, isSidebarVisible }) {
   const tempSliderRef = useRef(null);
   const systemMessageRef = useRef(null);
 
+  const getLabelPosition = (temperature) => {
+    const percent = temperature * 100;
+    if (percent < 10) {
+      return {
+        left: '3%',
+        transform: 'translateX(-3%)',
+      };
+    } else if (percent > 90) {
+      return {
+        left: '97%',
+        transform: 'translateX(-97%)',
+      };
+    } else {
+      return {
+        left: `${percent}%`,
+        transform: `translateX(-${percent}%)`,
+      };
+    }
+  };
+
+  // JSX에서 사용
+  const labelPosition = getLabelPosition(temperature);
+
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (isModelModalOpen && modelModalRef.current && !modelModalRef.current.contains(event.target)) {
@@ -54,15 +77,15 @@ function Header({ toggleSidebar, isSidebarVisible }) {
   return (
     <div className="header">
       <div className="header-left">
+        <div className="model-box" onClick={() => setIsModelModalOpen(true)}>
+          {models.find(m => m.model_name === model)?.model_alias}
+        </div>
+        
         {!isSidebarVisible && (
           <button className="expand-sidebar" onClick={toggleSidebar} title="사이드바 열기">
             <BsLayoutTextSidebar style={{ strokeWidth: 0.3 }} />
           </button>
         )}
-
-        <div className="model-box" onClick={() => setIsModelModalOpen(true)}>
-          {models.find(m => m.model_name === model)?.model_alias}
-        </div>
 
         <div className="header-icon temperature-icon">
           <BsSliders
@@ -82,9 +105,9 @@ function Header({ toggleSidebar, isSidebarVisible }) {
               <motion.div
                 className="temp-slider-container"
                 ref={tempSliderRef}
-                initial={{ x: -10, opacity: 0, translateY: "-50%" }}
+                initial={{ x: -5, opacity: 0, translateY: "-50%" }}
                 animate={{ x: 0, opacity: 1, translateY: "-50%" }}
-                exit={{ x: -10, opacity: 0, translateY: "-50%" }}
+                exit={{ x: -5, opacity: 0, translateY: "-50%" }}
                 transition={{ duration: 0.2 }}
               >
                 <div className="slider-wrapper" style={{ position: 'relative', width: '100%' }}>
@@ -99,10 +122,7 @@ function Header({ toggleSidebar, isSidebarVisible }) {
                   />
                   <div
                     className="slider-value"
-                    style={{
-                      left: `${temperature * 100}%`,
-                      transform: 'translateX(-50%)',
-                    }}
+                    style={labelPosition}
                   >
                     {temperature}
                   </div>
@@ -152,12 +172,12 @@ function Header({ toggleSidebar, isSidebarVisible }) {
       <AnimatePresence>
         {isModelModalOpen && (
           <motion.div
-            className="modal-overlay"
+            className="hmodal-overlay"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1, transition: { duration: 0.3 } }}
             exit={{ opacity: 0, transition: { duration: 0.3 } }}
           >
-            <div className="modal" ref={modelModalRef}>
+            <div className="hmodal" ref={modelModalRef}>
               <div className="model-list">
                 {models.map((m) => (
                   <div className="model-item" 

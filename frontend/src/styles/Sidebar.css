@@ -1,10 +1,9 @@
 /* src/styles/Sidebar.css */
-
 .sidebar {
     display: flex;
     flex-direction: column;
     width: 280px;
-    height: 100vh;
+    height: 100dvh;
     box-sizing: border-box;
     border-right: 1px solid rgb(240, 240, 240);
     background-color: rgb(252, 252, 252);
@@ -57,12 +56,10 @@
     color: #333;
     display: flex;
     align-items: center;
-    margin-right: 14px;
 }
 
-
 .newconv-container {
-    margin-top: 12px;
+    margin-top: 10px;
     border-bottom: 1px solid rgb(240, 240, 240);
 }
 
@@ -71,34 +68,10 @@
     font-weight: 500;
 }
 
-.user-container {
-    position: relative;
-
-}
-
-.user-info {
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    padding: 25px 20px;
-    gap: 10px;
-    border-top: 1px solid rgb(240, 240, 240);
-    cursor: pointer;
-}
-
-.user-info:hover {
-    background-color: #f0f0f0;
-}
-
-.user-icon {
-    font-size: 28px;
-}
-
 .conversation-container {
-    box-sizing: border-box;
-    flex-grow: 1;
-    list-style-type: none;
+    flex: 1 1 auto;
     overflow-y: auto;
+    list-style-type: none;
 }
 
 .conversation-list {
@@ -137,14 +110,11 @@
 }
 
 .delete-icon {
+    margin-left: 10px;
+    color: rgb(160, 160, 160);
     opacity: 0;
     cursor: pointer;
-    margin-left: 10px;
     transition: opacity 0.2s ease-in-out;
-}
-
-.conversation-item:hover .delete-icon {
-    opacity: 1;
 }
 
 .user-dropdown {
@@ -167,6 +137,28 @@
     background-color: #f0f0f0;
 }
 
+.user-container {
+    position: relative;
+}
+
+.user-info {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    padding: 25px 20px;
+    gap: 10px;
+    border-top: 1px solid rgb(240, 240, 240);
+    cursor: pointer;
+}
+
+.user-info:hover {
+    background-color: #f0f0f0;
+}
+
+.user-icon {
+    font-size: 28px;
+}
+
 .user-billing {
     padding: 20px;
     text-align: center;
@@ -187,3 +179,23 @@
 .logout-button:hover {
     background-color: #f0f0f0;
 }
+
+@media (max-width: 768px) {
+    .sidebar {
+        transform: translateX(-100%);
+        transition: transform 0.3s ease-in-out;
+    }
+    .sidebar.visible {
+        transform: translateX(0);
+    }
+    .delete-icon {
+        color: rgb(230, 230, 230);
+        opacity: 1;
+      }
+}
+
+@media (hover: hover) {
+    .conversation-item:hover .delete-icon {
+      opacity: 1;
+    }
+  }

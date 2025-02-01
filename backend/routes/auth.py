@@ -4,7 +4,7 @@ import bcrypt
 from dotenv import load_dotenv
 from fastapi import APIRouter, HTTPException, Cookie, Depends, status
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr, constr
 from pymongo import MongoClient
 from bson import ObjectId
 from datetime import datetime
@@ -25,13 +25,13 @@ ALGORITHM = 'HS256'
 
 # Pydantic 모델
 class RegisterUser(BaseModel):
-    name: str
-    email: str
-    password: str
+    name: constr(strip_whitespace=True, min_length=1)
+    email: EmailStr
+    password: constr(min_length=8, max_length=20)
 
 class LoginUser(BaseModel):
-    email: str
-    password: str
+    email: EmailStr
+    password: constr(strip_whitespace=True, min_length=1)
 
 class User(BaseModel):
     user_id: str
@@ -50,7 +50,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 @router.post("/register")
 async def register(user: RegisterUser):
     if collection.find_one({"email": user.email}):
-        raise HTTPException(status_code=400, detail="User already exists")
+        raise HTTPException(status_code=400, detail="이미 존재하는 사용자입니다.")
     
     new_user = {
         "name": user.name,
@@ -68,7 +68,7 @@ async def register(user: RegisterUser):
 async def login(user: LoginUser):
     db_user = collection.find_one({"email": user.email})
     if not db_user or not verify_password(user.password, db_user["password"]):
-        raise HTTPException(status_code=401, detail="Incorrect Email or Password")
+        raise HTTPException(status_code=401, detail="이메일 또는 비밀번호 오류입니다.")
     
     token = jwt.encode(
         {

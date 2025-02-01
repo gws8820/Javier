@@ -12,6 +12,7 @@
     "micromark-extension-gfm-footnote": "^2.1.0",
     "micromark-extension-gfm-strikethrough": "^2.1.0",
     "micromark-extension-gfm-table": "^2.1.1",
+    "package.json": "^2.0.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-icons": "^5.4.0",
@@ -23,6 +24,7 @@
     "rehype-highlight": "^7.0.1",
     "rehype-sanitize": "^6.0.0",
     "remark-gfm": "^4.0.0",
+    "uuid": "^11.0.5",
     "web-vitals": "^4.2.4"
   },
   "scripts": {
@@ -48,5 +50,8 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
+  },
+  "devDependencies": {
+    "@babel/plugin-proposal-private-property-in-object": "^7.21.11"
   }
 }

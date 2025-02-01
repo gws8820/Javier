@@ -1,10 +1,11 @@
-// src/pages/Chat.js
-import React, { useState, useEffect, useLayoutEffect, useCallback, useRef, useContext } from "react";
+// src/components/Chat.js
+import React, { useState, useEffect, useCallback, useRef, useContext } from "react";
 import { useParams, useLocation } from "react-router-dom";
 import { FaPaperPlane, FaStop } from "react-icons/fa";
 import { ImSpinner8 } from "react-icons/im";
 import { SettingsContext } from "../contexts/SettingsContext";
 import { motion } from "framer-motion";
+import { v4 as uuidv4 } from 'uuid';
 import axios from "axios";
 import modelsData from '../model.json';
 import Message from "../components/Message";
@@ -15,7 +16,10 @@ function Chat() {
   const location = useLocation();
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState("");
+  const [isAtBottom, setIsAtBottom] = useState(true);
+  const [scrollOnSend, setScrollOnSend] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isThinking, setIsThinking] = useState(false);
   const [isComposing, setIsComposing] = useState(false);
 
   const textAreaRef = useRef(null);
@@ -40,94 +44,112 @@ function Chat() {
 
   const models = modelsData.models;
 
-  // Assistant 메시지 업데이트 함수
-  const updateAssistantMessage = useCallback((text) => {
+  const updateAssistantMessage = useCallback((text, isComplete = false) => {
     setMessages((prev) => {
       const lastMsg = prev[prev.length - 1];
       if (lastMsg && lastMsg.role === "assistant") {
         return prev.map((msg, i) =>
-          i === prev.length - 1 ? { ...msg, content: text } : msg
+          i === prev.length - 1
+            ? { ...msg, content: text, isComplete }
+            : msg
         );
       } else {
-        return [...prev, { role: "assistant", content: text }];
+        return [...prev, { id: uuidv4(), role: "assistant", content: text, isComplete }];
       }
     });
   }, []);
 
-  // 메시지 전송 함수
   const sendMessage = useCallback(
     async (message) => {
       if (!message.trim()) return;
 
-      setMessages((prev) => [...prev, { role: "user", content: message }]);
+      setMessages((prev) => [...prev, { id: uuidv4(), role: "user", content: message }]);
       setInputText("");
       setIsLoading(true);
-
+      setIsThinking(true);
+      setScrollOnSend(true);
+  
       const controller = new AbortController();
       abortControllerRef.current = controller;
-
+  
+      let dotInterval = null;
+  
       try {
         const selectedModel = models.find((m) => m.model_name === model);
         if (!selectedModel) {
           throw new Error("선택한 모델이 유효하지 않습니다.");
         }
-
+  
         if (INFERENCE_MODELS.includes(selectedModel.model_name)) {
-          updateAssistantMessage("생각 중...");
-        };
-
+          updateAssistantMessage("생각 중");
+          let dotCount = 0;
+          dotInterval = setInterval(() => {
+            dotCount++;
+            const dots = ".".repeat(dotCount % 6); 
+            updateAssistantMessage(`생각 중${dots}`);
+          }, 1000);
+        }
+  
         const response = await fetch(
           `${process.env.REACT_APP_FASTAPI_URL}${selectedModel.endpoint}`,
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                conversation_id,
-                model: selectedModel.model_name,
-                temperature: temperature,
-                system_message: systemMessage,
-                user_message: message,
-              }),
-              credentials: "include",
-              signal: controller.signal
-            }
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              conversation_id,
+              model: selectedModel.model_name,
+              temperature: temperature,
+              system_message: systemMessage,
+              user_message: message,
+            }),
+            credentials: "include",
+            signal: controller.signal
+          }
         );
-
+  
         if (!response.ok) {
           throw new Error(`서버 응답 오류: ${response.status}`);
         }
-
+  
         const reader = response.body.getReader();
         const decoder = new TextDecoder("utf-8");
         let partialData = "";
         let assistantText = "";
-
+  
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
+          
+          if (isThinking) {
+            setIsThinking(false);
+            if (dotInterval) {
+              clearInterval(dotInterval);
+              dotInterval = null;
+            }
+          }
 
           const chunk = decoder.decode(value, { stream: true });
           partialData += chunk;
-
+  
           const lines = partialData.split("\n\n");
           for (let i = 0; i < lines.length - 1; i++) {
             const line = lines[i];
-
+  
             if (line.startsWith("data: ")) {
               const jsonData = line.replace("data: ", "");
               try {
                 const data = JSON.parse(jsonData);
                 if (data.error) {
-                  updateAssistantMessage(data.error);
+                  updateAssistantMessage(data.error, true);
                   reader.cancel();
                   return;
                 } else if (data.content) {
                   assistantText += data.content;
-                  updateAssistantMessage(assistantText);
+                  updateAssistantMessage(assistantText, false);
                 }
               } catch (err) {
                 console.error("JSON 파싱 오류:", err);
-                updateAssistantMessage("데이터 처리 중 오류가 발생했습니다.");
+                updateAssistantMessage("데이터 처리 중 오류가 발생했습니다.", true);
                 reader.cancel();
                 return;
               }
@@ -135,22 +157,34 @@ function Chat() {
           }
           partialData = lines[lines.length - 1];
         }
-
-        updateAssistantMessage(assistantText);
+  
+        updateAssistantMessage(assistantText, true);
       } catch (err) {
-        if (err.name === 'AbortError') { // 추가된 부분
-          console.log('사용자 요청에 의해 중단됨');
+        if (err.name === 'AbortError') {
+          console.log('User Aborted');
           return;
         }
-        updateAssistantMessage("메시지 전송 중 오류 발생: " + err.message);
+        updateAssistantMessage("메시지 전송 중 오류 발생: " + err.message, true);
       } finally {
+        if (dotInterval) {
+          clearInterval(dotInterval);
+        }
         setIsLoading(false);
-        abortControllerRef.current = null; // 추가된 부분
+        abortControllerRef.current = null;
       }
     },
-    [conversation_id, model, models, temperature, systemMessage, updateAssistantMessage, INFERENCE_MODELS]
+    [
+      conversation_id,
+      model,
+      models,
+      temperature,
+      systemMessage,
+      updateAssistantMessage,
+      INFERENCE_MODELS,
+      isThinking
+    ]
   );
-  
+
   useEffect(() => {
     sendMessageRef.current = sendMessage;
     updateAssistantMessageRef.current = updateAssistantMessage;
@@ -158,7 +192,7 @@ function Chat() {
     updateModelRef.current = updateModel;
     updateTemperatureRef.current = updateTemperature;
   }, [sendMessage, updateAssistantMessage, updateInstruction, updateModel, updateTemperature]);
-  
+
   useEffect(() => {
     const initializeChat = async () => {
       try {
@@ -166,23 +200,26 @@ function Chat() {
           `${process.env.REACT_APP_FASTAPI_URL}/conversation/${conversation_id}`,
           { withCredentials: true }
         );
+
         updateModelRef.current?.(res.data.model);
         updateTemperatureRef.current?.(res.data.temperature);
         updateInstructionRef.current?.(res.data.system_message);
-        setMessages(res.data.messages);
-  
+        const updatedMessages = res.data.messages.map((m) =>
+          m.role === "assistant" ? { ...m, isComplete: true } : m
+        );
+        setMessages(updatedMessages);
+
         if (initialMessage.current && res.data.messages.length === 0) {
           await sendMessageRef.current?.(initialMessage.current);
         }
       } catch (err) {
-        updateAssistantMessageRef.current?.("초기화 중 오류 발생: " + err.message);
+        updateAssistantMessageRef.current?.("초기화 중 오류 발생: " + err.message, true);
       }
     };
-  
+
     initializeChat();
   }, [conversation_id]);
 
-  // 텍스트 영역 높이 조절 함수
   const adjustTextareaHeight = useCallback(() => {
     const textarea = textAreaRef.current;
     if (textarea) {
@@ -196,39 +233,41 @@ function Chat() {
     adjustTextareaHeight();
   }, [inputText, adjustTextareaHeight]);
 
-  // 메시지 업데이트 시 자동 스크롤
-  const scrollToBottom = useCallback(() => {
-    if (messagesEndRef.current) {
-      const container = messagesEndRef.current.parentElement;
-      const isNearBottom = 
-        container.scrollHeight - container.scrollTop <= container.clientHeight + 100;
-
-      if (isNearBottom) {
-        messagesEndRef.current.scrollIntoView({ behavior: "auto" });
-      }
-    }
-  }, []);
-
   useEffect(() => {
-    const container = messagesEndRef.current?.parentElement;
-    if (!container) return;
+    const chatContainer = messagesEndRef.current?.parentElement;
+    if (!chatContainer) return;
 
     const handleScroll = () => {
-      const isAtBottom = 
-        container.scrollHeight - container.scrollTop === container.clientHeight;
-      
-      if (isAtBottom) {
-        scrollToBottom();
+      const { scrollTop, clientHeight, scrollHeight } = chatContainer;
+      if (scrollHeight - scrollTop - clientHeight > 50) {
+        setIsAtBottom(false);
+      } else {
+        setIsAtBottom(true);
       }
     };
 
-    container.addEventListener('scroll', handleScroll);
-    return () => container.removeEventListener('scroll', handleScroll);
-  }, [scrollToBottom]);
+    chatContainer.addEventListener('scroll', handleScroll);
+    handleScroll();
 
-  useLayoutEffect(() => {
-    scrollToBottom();
-  }, [messages, scrollToBottom]);
+    return () => chatContainer.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  useEffect(() => {
+    if (isAtBottom) {
+      requestAnimationFrame(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
+      });
+    }
+  }, [messages, isAtBottom]);
+
+  useEffect(() => {
+    if (scrollOnSend) {
+      requestAnimationFrame(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      });
+      setScrollOnSend(false);
+    }
+  }, [messages, scrollOnSend]);
 
   const handleKeyDown = (event) => {
     if (event.key === 'Enter' && !event.shiftKey && !isComposing) {
@@ -238,15 +277,18 @@ function Chat() {
   };
 
   return (
-    <motion.div className="container">
-      <div className="chat-messages" style={{ overflowY: "auto", maxHeight: "80vh" }}>
-        {messages.map((msg, idx) => (
-          <Message key={idx} role={msg.role} content={msg.content} />
+    <div className="container">
+      <div className="chat-messages">
+        {messages.map((msg) => (
+          <Message
+            key={msg.id} // 각 메시지의 고유 id를 key로 사용
+            role={msg.role}
+            content={msg.content}
+            isComplete={msg.isComplete}
+          />
         ))}
-        {/* 스크롤을 위한 빈 div */}
         <div ref={messagesEndRef} />
       </div>
-
       <motion.div
         className="input-area chat-input-area"
         initial={{ y: 8, opacity: 0 }}
@@ -287,7 +329,7 @@ function Chat() {
           )}
         </button>
       </motion.div>
-    </motion.div>
+    </div>
   );
 }
 

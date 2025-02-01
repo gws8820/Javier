@@ -23,32 +23,35 @@ class ChatRequest(BaseModel):
     system_message: str = ""
     user_message: str
 
-@router.post("/claude")
-async def claude_endpoint(request: ChatRequest, user: User = Depends(get_current_user)):
+def get_response(request: ChatRequest, user: User) -> StreamingResponse:
     conversation_data = collection.find_one({"user_id": user.user_id, "conversation_id": request.conversation_id})
-    conversation = conversation_data["conversation"] if conversation_data else []
+    conversation = conversation_data["conversation"][-20:] if conversation_data else []
     conversation.append({"role": "user", "content": request.user_message})
 
     def event_generator():
+        response = ""
         try:
             client = anthropic.Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))
+            extra_args = {"system": request.system_message} if request.system_message else {}
             stream = client.messages.create(
                 model=request.model,
                 temperature=request.temperature,
                 max_tokens=2048,
-                **({"system": request.system_message} if request.system_message else {}),
                 messages=conversation,
-                stream=True
+                stream=True,
+                **extra_args
             )
-
-            response = ""
             for chunk in stream:
                 if hasattr(chunk, "delta") and hasattr(chunk.delta, "text"):
                     content = chunk.delta.text
                     response += content
                     yield f"data: {json.dumps({'content': content})}\n\n"
-
-            conversation.append({"role": "assistant", "content": response})
+            yield "event: end\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+        finally:
+            if response:
+                conversation.append({"role": "assistant", "content": response})
             collection.update_one(
                 {"user_id": user.user_id, "conversation_id": request.conversation_id},
                 {"$set": {
@@ -59,8 +62,9 @@ async def claude_endpoint(request: ChatRequest, user: User = Depends(get_current
                 }},
                 upsert=True
             )
-            yield "event: end\n\n"
-        except Exception as e:
-            yield f"data: {json.dumps({'error': str(e)})}\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+@router.post("/claude")
+async def claude_endpoint(request: ChatRequest, user: User = Depends(get_current_user)):
+    return get_response(request, user)

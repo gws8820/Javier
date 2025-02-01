@@ -1,12 +1,13 @@
 
 /* src/styles/Common.css */
 .container {
-    height: calc(100vh - 90px);
+    height: calc(100dvh - 60px);
     display: flex;
     flex-direction: column;
-    align-items: center; /* 가로 중앙 정렬 */
-    justify-content: center; /* 세로 중앙 정렬을 제거하고, 컨텐츠가 상단에 위치하도록 함 */
+    align-items: center;
+    justify-content: center;
     position: relative;
+    container-type: inline-size;
 }
 
 .welcome-message {
@@ -21,25 +22,18 @@
     flex-direction: row;
     align-items: center;
     border-radius: 24px;
+    margin-bottom: 40px;
+    width: 85%;
+    max-width: 720px;
     padding: 10px;
     background-color: rgb(244, 244, 244);
+    opacity: 1;
 }
 
 /* Main 페이지의 input-area */
 .main-input-area {
     top: 50%;
     transform: translateY(-50%);
-    width: 80%;
-    max-width: 720px;
-    opacity: 1;
-}
-
-/* Chat 페이지의 input-area */
-.chat-input-area {
-    bottom: 20px;
-    width: 80%;
-    max-width: 720px;
-    opacity: 1;
 }
 
 /* 메세지 입력의 textarea */
@@ -49,7 +43,7 @@
     height: 90px;
     padding: 10px;
     box-sizing: border-box;
-    font-family: Arial, sans-serif;
+    font-family: "Noto Sans KR", sans-serif;
     font-size: 16px;
     border: none;
     resize: none;
@@ -66,14 +60,6 @@
 .user-message-input::-webkit-scrollbar-thumb {
     background: rgb(236, 236, 236);
     border-radius: 4px;
-}
-
-.chat-message h3 {
-    margin-bottom: 0;
-}
-
-.chat-message ol {
-    margin: 0;
 }
 
 /* 공통 버튼 스타일 */
@@ -139,16 +125,19 @@
 
 /* 반응형 디자인 */
 @media (max-width: 768px) {
-    .container {
-        padding: 10px;
+    .welcome-message {
+        position: fixed;
+        font-size: 25px;
+        top: calc(50% - 60px);
+        transform: translateY(-50%);
     }
     .input-area {
-        width: 90%;
+        margin-bottom: 20px;
     }
-    .chat-messages {
-        height: calc(100vh - 150px);
-    }
-    .modal {
-        width: 90%;
+    .main-input-area {
+        position: fixed;
+        top: auto;
+        transform: none;
+        bottom: 0;
     }
 }

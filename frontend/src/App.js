@@ -7,10 +7,10 @@ import Main from "./pages/Main";
 import Chat from "./pages/Chat";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
-import Header from "./components/Header"; // Header 컴포넌트 추가
+import Header from "./components/Header";
 import { SettingsProvider } from "./contexts/SettingsContext";
-import { motion, AnimatePresence } from "framer-motion"; // Framer Motion 유지
-import "./styles/Common.css"; // CSS 파일 임포트
+import { motion, AnimatePresence } from "framer-motion";
+import "./styles/Common.css";
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(null);
@@ -53,6 +53,21 @@ function App() {
     checkLoginStatus();
   }, []);
 
+  // 창 크기에 따라 사이드바 기본 표시 상태 설정 (모바일: 숨김, 데스크탑: 표시)
+  useEffect(() => {
+    const updateSidebarVisibility = () => {
+      if (window.innerWidth < 768) {
+        setIsSidebarVisible(false);
+      } else {
+        setIsSidebarVisible(true);
+      }
+    };
+
+    updateSidebarVisibility();
+    window.addEventListener("resize", updateSidebarVisibility);
+    return () => window.removeEventListener("resize", updateSidebarVisibility);
+  }, []);
+
   const toggleSidebar = () => {
     setIsSidebarVisible((prev) => !prev);
   };
@@ -84,8 +99,8 @@ function App() {
         error={error}
         deleteConversation={deleteConversation}
         fetchConversations={fetchConversations}
-        addConversation={addConversation} // Main에 전달
-        setError={setError} // Sidebar에 setError 전달
+        addConversation={addConversation}
+        setError={setError}
       />
     </Router>
   );
@@ -96,30 +111,51 @@ function AppContent({ isLoggedIn, isSidebarVisible, toggleSidebar, conversations
   const hideLayoutRoutes = ["/login", "/register"];
   const shouldShowLayout = !hideLayoutRoutes.includes(location.pathname);
 
+  const isMobile = window.innerWidth < 768;
+  const marginLeft = (shouldShowLayout && !isMobile && isSidebarVisible) ? 280 : 0;
+
   return (
-    <div style={{ display: "flex", height: "100vh" }}>
+    <div style={{ display: "flex" }}>
       {shouldShowLayout && (
-        <Sidebar
-          toggleSidebar={toggleSidebar}
-          isSidebarVisible={isSidebarVisible}
-          conversations={conversations}
-          loading={loading}
-          error={error}
-          deleteConversation={deleteConversation}
-          setError={setError}
-        />
+        isMobile ? (
+          <Sidebar
+            toggleSidebar={toggleSidebar}
+            isSidebarVisible={isSidebarVisible}
+            conversations={conversations}
+            loading={loading}
+            error={error}
+            deleteConversation={deleteConversation}
+            setError={setError}
+            isMobile={isMobile}
+          />
+        ) : (
+          <motion.div
+            initial={{ x: isSidebarVisible ? 0 : -280 }}
+            animate={{ x: isSidebarVisible ? 0 : -280 }}
+            transition={{ duration: 0.3, ease: "easeInOut" }}
+            style={{ position: "fixed", left: 0, top: 0, bottom: 0 }}
+          >
+            <Sidebar
+              toggleSidebar={toggleSidebar}
+              isSidebarVisible={isSidebarVisible}
+              conversations={conversations}
+              loading={loading}
+              error={error}
+              deleteConversation={deleteConversation}
+              setError={setError}
+              isMobile={isMobile}
+            />
+          </motion.div>
+        )
       )}
       <motion.div
-          style={{
-              flex: 1,
-              overflow: "auto",
-              position: "relative",
-          }}
-          initial={{ marginLeft: isSidebarVisible ? 280 : 0 }}
-          animate={{
-              marginLeft: isSidebarVisible ? 280 : 0,
-          }}
-          transition={{ duration: 0.3, ease: "easeInOut" }}
+        style={{
+          flex: 1,
+          position: "relative",
+        }}
+        initial={{ marginLeft }}
+        animate={{ marginLeft }}
+        transition={{ duration: 0.3, ease: "easeInOut" }}
       >
         <SettingsProvider>
           {shouldShowLayout && (
@@ -133,17 +169,13 @@ function AppContent({ isLoggedIn, isSidebarVisible, toggleSidebar, conversations
               <Route
                 path="/"
                 element={isLoggedIn ? (
-                  <Main
-                    addConversation={addConversation} // Main에 addConversation 전달
-                  />
+                  <Main addConversation={addConversation} />
                 ) : <Navigate to="/login" />}
               />
               <Route
                 path="/chat/:conversation_id"
                 element={isLoggedIn ? (
-                  <Chat
-                    fetchConversations={fetchConversations} // Chat에서 필요시 사용
-                  />
+                  <Chat fetchConversations={fetchConversations} />
                 ) : <Navigate to="/login" />}
               />
               <Route
