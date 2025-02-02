@@ -78,8 +78,8 @@ function Main({ addConversation }) {
   const adjustTextareaHeight = useCallback(() => {
     const textarea = textAreaRef.current;
     if (textarea) {
-      textarea.style.height = "auto"; // 높이를 초기화
-      const newHeight = Math.min(textarea.scrollHeight, 300); // 최대 높이 300px
+      textarea.style.height = "auto";
+      const newHeight = Math.min(textarea.scrollHeight, 200);
       textarea.style.height = `${newHeight}px`;
     }
   }, []);
@@ -126,7 +126,6 @@ function Main({ addConversation }) {
             placeholder="오늘 어떤 일이 있었나요?"
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
-            rows={3}
             onKeyDown={handleKeyDown}
             onCompositionStart={() => setIsComposing(true)}
             onCompositionEnd={() => setIsComposing(false)}

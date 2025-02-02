@@ -5,7 +5,6 @@ import { FaPaperPlane, FaStop } from "react-icons/fa";
 import { ImSpinner8 } from "react-icons/im";
 import { SettingsContext } from "../contexts/SettingsContext";
 import { motion } from "framer-motion";
-import { v4 as uuidv4 } from 'uuid';
 import axios from "axios";
 import modelsData from '../model.json';
 import Message from "../components/Message";
@@ -19,8 +18,9 @@ function Chat() {
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [scrollOnSend, setScrollOnSend] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [isThinking, setIsThinking] = useState(false);
   const [isComposing, setIsComposing] = useState(false);
+  const [isThinking, setIsThinking] = useState(false);
+  const [thinkingText, setThinkingText] = useState("");
 
   const textAreaRef = useRef(null);
   const messagesEndRef = useRef(null);
@@ -31,6 +31,7 @@ function Chat() {
   const updateInstructionRef = useRef(null);
   const updateModelRef = useRef(null);
   const updateTemperatureRef = useRef(null);
+  const thinkingIntervalRef = useRef(null);
 
   const {
     model,
@@ -45,6 +46,12 @@ function Chat() {
   const models = modelsData.models;
 
   const updateAssistantMessage = useCallback((text, isComplete = false) => {
+    if (thinkingIntervalRef.current) {
+      clearInterval(thinkingIntervalRef.current);
+      thinkingIntervalRef.current = null;
+      setIsThinking(false);
+    }
+
     setMessages((prev) => {
       const lastMsg = prev[prev.length - 1];
       if (lastMsg && lastMsg.role === "assistant") {
@@ -54,7 +61,7 @@ function Chat() {
             : msg
         );
       } else {
-        return [...prev, { id: uuidv4(), role: "assistant", content: text, isComplete }];
+        return [...prev, { role: "assistant", content: text, isComplete }];
       }
     });
   }, []);
@@ -62,34 +69,31 @@ function Chat() {
   const sendMessage = useCallback(
     async (message) => {
       if (!message.trim()) return;
-
-      setMessages((prev) => [...prev, { id: uuidv4(), role: "user", content: message }]);
+      setMessages((prev) => [...prev, { role: "user", content: message }]);
       setInputText("");
       setIsLoading(true);
-      setIsThinking(true);
       setScrollOnSend(true);
-  
+
       const controller = new AbortController();
       abortControllerRef.current = controller;
-  
-      let dotInterval = null;
-  
+
       try {
         const selectedModel = models.find((m) => m.model_name === model);
         if (!selectedModel) {
           throw new Error("선택한 모델이 유효하지 않습니다.");
         }
-  
+
         if (INFERENCE_MODELS.includes(selectedModel.model_name)) {
-          updateAssistantMessage("생각 중");
+          setIsThinking(true);
+          setThinkingText("생각 중");
           let dotCount = 0;
-          dotInterval = setInterval(() => {
+          thinkingIntervalRef.current = setInterval(() => {
             dotCount++;
-            const dots = ".".repeat(dotCount % 6); 
-            updateAssistantMessage(`생각 중${dots}`);
+            const dots = ".".repeat(dotCount % 6);
+            setThinkingText(`생각 중${dots}`);
           }, 1000);
         }
-  
+
         const response = await fetch(
           `${process.env.REACT_APP_FASTAPI_URL}${selectedModel.endpoint}`,
           {
@@ -106,35 +110,24 @@ function Chat() {
             signal: controller.signal
           }
         );
-  
+
         if (!response.ok) {
           throw new Error(`서버 응답 오류: ${response.status}`);
         }
-  
+
         const reader = response.body.getReader();
         const decoder = new TextDecoder("utf-8");
         let partialData = "";
         let assistantText = "";
-  
+
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
-          
-          if (isThinking) {
-            setIsThinking(false);
-            if (dotInterval) {
-              clearInterval(dotInterval);
-              dotInterval = null;
-            }
-          }
-
           const chunk = decoder.decode(value, { stream: true });
           partialData += chunk;
-  
           const lines = partialData.split("\n\n");
           for (let i = 0; i < lines.length - 1; i++) {
             const line = lines[i];
-  
             if (line.startsWith("data: ")) {
               const jsonData = line.replace("data: ", "");
               try {
@@ -148,7 +141,6 @@ function Chat() {
                   updateAssistantMessage(assistantText, false);
                 }
               } catch (err) {
-                console.error("JSON 파싱 오류:", err);
                 updateAssistantMessage("데이터 처리 중 오류가 발생했습니다.", true);
                 reader.cancel();
                 return;
@@ -157,17 +149,17 @@ function Chat() {
           }
           partialData = lines[lines.length - 1];
         }
-  
         updateAssistantMessage(assistantText, true);
       } catch (err) {
         if (err.name === 'AbortError') {
-          console.log('User Aborted');
           return;
         }
         updateAssistantMessage("메시지 전송 중 오류 발생: " + err.message, true);
       } finally {
-        if (dotInterval) {
-          clearInterval(dotInterval);
+        if (thinkingIntervalRef.current) {
+          clearInterval(thinkingIntervalRef.current);
+          thinkingIntervalRef.current = null;
+          setIsThinking(false);
         }
         setIsLoading(false);
         abortControllerRef.current = null;
@@ -180,8 +172,7 @@ function Chat() {
       temperature,
       systemMessage,
       updateAssistantMessage,
-      INFERENCE_MODELS,
-      isThinking
+      INFERENCE_MODELS
     ]
   );
 
@@ -200,7 +191,6 @@ function Chat() {
           `${process.env.REACT_APP_FASTAPI_URL}/conversation/${conversation_id}`,
           { withCredentials: true }
         );
-
         updateModelRef.current?.(res.data.model);
         updateTemperatureRef.current?.(res.data.temperature);
         updateInstructionRef.current?.(res.data.system_message);
@@ -208,7 +198,6 @@ function Chat() {
           m.role === "assistant" ? { ...m, isComplete: true } : m
         );
         setMessages(updatedMessages);
-
         if (initialMessage.current && res.data.messages.length === 0) {
           await sendMessageRef.current?.(initialMessage.current);
         }
@@ -216,7 +205,6 @@ function Chat() {
         updateAssistantMessageRef.current?.("초기화 중 오류 발생: " + err.message, true);
       }
     };
-
     initializeChat();
   }, [conversation_id]);
 
@@ -224,7 +212,7 @@ function Chat() {
     const textarea = textAreaRef.current;
     if (textarea) {
       textarea.style.height = "auto";
-      const newHeight = Math.min(textarea.scrollHeight, 300);
+      const newHeight = Math.min(textarea.scrollHeight, 200);
       textarea.style.height = `${newHeight}px`;
     }
   }, []);
@@ -236,7 +224,6 @@ function Chat() {
   useEffect(() => {
     const chatContainer = messagesEndRef.current?.parentElement;
     if (!chatContainer) return;
-
     const handleScroll = () => {
       const { scrollTop, clientHeight, scrollHeight } = chatContainer;
       if (scrollHeight - scrollTop - clientHeight > 50) {
@@ -245,10 +232,8 @@ function Chat() {
         setIsAtBottom(true);
       }
     };
-
     chatContainer.addEventListener('scroll', handleScroll);
     handleScroll();
-
     return () => chatContainer.removeEventListener('scroll', handleScroll);
   }, []);
 
@@ -279,14 +264,25 @@ function Chat() {
   return (
     <div className="container">
       <div className="chat-messages">
-        {messages.map((msg) => (
+        {messages.map((msg, idx) => (
           <Message
-            key={msg.id} // 각 메시지의 고유 id를 key로 사용
+            key={idx}
             role={msg.role}
             content={msg.content}
             isComplete={msg.isComplete}
           />
         ))}
+      {isThinking && (
+        <motion.div 
+          className="chat-message think"
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 0, transition: { duration: 0 } }}
+          transition={{ duration: 0.5, delay: 0.2, ease: "easeOut" }}
+        >
+          {thinkingText}
+        </motion.div>
+      )}
         <div ref={messagesEndRef} />
       </div>
       <motion.div
@@ -298,9 +294,8 @@ function Chat() {
       >
         <textarea
           ref={textAreaRef}
-          className="user-message-input"
+          className="message-input"
           placeholder="답장 입력하기"
-          rows={3}
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
           onKeyDown={handleKeyDown}

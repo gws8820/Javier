@@ -68,7 +68,7 @@ function Register() {
 
   return (
     <motion.div
-      className="container"
+      className="auth-container"
       initial={{ y: 20, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ duration: 0.4 }}

@@ -49,9 +49,11 @@ def get_response(request: ChatRequest, settings: ApiSettings, user: User = Depen
                 stream=True
             )
             for chunk in stream:
-                content = chunk.choices[0].delta.content or ""
-                response += content
-                yield f"data: {json.dumps({'content': content})}\n\n"
+                print(chunk)
+                content = chunk.choices[0].delta.content
+                if content is not None and content != "":
+                    response += content
+                    yield f"data: {json.dumps({'content': content})}\n\n"
             yield "event: end\n\n"
         except Exception as e:
             yield f"data: {json.dumps({'error': str(e)})}\n\n"

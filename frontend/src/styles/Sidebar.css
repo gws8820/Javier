@@ -188,10 +188,13 @@
     .sidebar.visible {
         transform: translateX(0);
     }
+    .sidebar .header {
+        padding: 0 20px;
+    }
     .delete-icon {
         color: rgb(230, 230, 230);
         opacity: 1;
-      }
+    }
 }
 
 @media (hover: hover) {
