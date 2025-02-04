@@ -107,7 +107,7 @@ function Register() {
       </div>
 
       <AnimatePresence>
-        {showModal && <Modal message={modalMessage} onClose={handleModalClose} />}
+        {showModal && <Modal message={modalMessage} onConfirm={handleModalClose} />}
       </AnimatePresence>
     </motion.div>
   );

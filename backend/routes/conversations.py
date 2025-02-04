@@ -39,7 +39,6 @@ async def get_conversations(current_user: User = Depends(get_current_user)):
         {"user_id": user_id},
         {"_id": 1, "user_id": 1, "conversation_id": 1, "alias": 1}
     )
-
     conversations = [
         {
             "_id": str(doc["_id"]),
@@ -59,7 +58,6 @@ async def get_conversation(conversation_id: str, current_user: User = Depends(ge
 
     if not doc:
         raise HTTPException(status_code=404, detail="Conversation not found")
-
     return {
         "conversation_id": doc["conversation_id"],
         "model": doc["model"],
@@ -78,7 +76,6 @@ async def create_new_conversation(request_data: NewConversationRequest, current_
 
     conversation_id = str(uuid.uuid4())
     user_id = current_user.user_id
-
     new_conversation = {
         "user_id": user_id,
         "conversation_id": conversation_id,
@@ -88,13 +85,26 @@ async def create_new_conversation(request_data: NewConversationRequest, current_
         "system_message": request_data.system_message,
         "conversation": []
     }
-
     conversations_collection.insert_one(new_conversation)
 
     return {
         "message": "New conversation created",
         "alias": alias,
         "conversation_id": conversation_id
+    }
+
+@router.delete("/conversation/all", response_model=dict)
+async def delete_all_conversation(current_user: User = Depends(get_current_user)):
+    user_id = current_user.user_id
+    result = conversations_collection.delete_many({
+        "user_id": user_id,
+    })
+
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Conversation not found or already deleted")
+
+    return {
+        "message": "Conversations deleted successfully"
     }
 
 @router.delete("/conversation/{conversation_id}", response_model=dict)

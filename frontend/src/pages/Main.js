@@ -4,10 +4,9 @@ import { useNavigate } from "react-router-dom";
 import { FaPaperPlane, FaStop } from "react-icons/fa";
 import { ImSpinner8 } from "react-icons/im";
 import { SettingsContext } from "../contexts/SettingsContext";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import axios from "axios";
 import modelsData from '../model.json';
-import Modal from "../components/Modal";
 import "../styles/Common.css";
 
 function Main({ addConversation }) {
@@ -15,7 +14,6 @@ function Main({ addConversation }) {
   const [inputText, setInputText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isComposing, setIsComposing] = useState(false);
-  const [modalMessage, setModalMessage] = useState(null);
   const textAreaRef = useRef(null);
 
   const {
@@ -26,54 +24,43 @@ function Main({ addConversation }) {
 
   const models = modelsData.models;
 
-  const handleCreateConversation = useCallback(async () => {
-    if (!inputText.trim()) {
-      setModalMessage("메시지를 입력해주세요.");
-      return;
-    }
+  const sendMessage = useCallback(
+    async (message) => {
+      if (!message.trim()) return;
 
     try {
       const selectedModel = models.find((m) => m.model_name === model);
       if (!selectedModel) {
-        setModalMessage("선택한 모델이 유효하지 않습니다.");
-        return;
+        throw new Error("선택한 모델이 유효하지 않습니다.");
       }
-
-      const userMessage = inputText;
       setInputText("");
       setIsLoading(true);
-
       const response = await axios.post(
         `${process.env.REACT_APP_FASTAPI_URL}/new_conversation`,
         {
-          user_message: userMessage,
-          model: model,
+          model: selectedModel.model_name,
           temperature: temperature,
           system_message: systemMessage,
+          user_message: message,
         },
         { withCredentials: true }
       );
 
       const { conversation_id, alias } = response.data;
-      if (conversation_id && alias) {
-        const newConversation = { conversation_id, alias };
-        addConversation(newConversation);
-        navigate(`/chat/${conversation_id}`, {
-          state: {
-            initialMessage: userMessage,
-          },
-          replace: false,
-        });
-      } else {
-        setModalMessage("새 대화를 생성하는 데 필요한 정보를 받지 못했습니다.");
-      }
+      const newConversation = { conversation_id, alias };
+      addConversation(newConversation);
+      navigate(`/chat/${conversation_id}`, {
+        state: {
+          initialMessage: message,
+        },
+        replace: false,
+      });
     } catch (error) {
-      console.error(error);
-      setModalMessage("새 대화를 생성하는 데 실패했습니다.");
+      throw new Error("새 대화를 생성하는 데 실패했습니다.");
     } finally {
       setIsLoading(false);
     }
-  }, [inputText, models, model, temperature, systemMessage, navigate, addConversation]);
+  }, [models, model, temperature, systemMessage, navigate, addConversation]);
 
   const adjustTextareaHeight = useCallback(() => {
     const textarea = textAreaRef.current;
@@ -91,7 +78,7 @@ function Main({ addConversation }) {
   const handleKeyDown = (event) => {
     if (event.key === 'Enter' && !event.shiftKey && !isComposing) {
       event.preventDefault();
-      handleCreateConversation();
+      sendMessage(inputText);
     }
   };
 
@@ -102,14 +89,14 @@ function Main({ addConversation }) {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        transition={{ duration: 0.3, delay: 0.2 }}
+        transition={{ duration: 0.3 }}
       >
         <motion.div
           className="welcome-message"
           initial={{ y: 5 }}
           animate={{ y: 0 }}
           exit={{ y: 5 }}
-          transition={{ duration: 0.3, delay: 0.2 }}
+          transition={{ duration: 0.3 }}
         >
           안녕하세요, 무엇을 도와드릴까요?
         </motion.div>
@@ -118,7 +105,7 @@ function Main({ addConversation }) {
           initial={{ y: 5 }}
           animate={{ y: 0 }}
           exit={{ y: 5 }}
-          transition={{ duration: 0.3, delay: 0.2 }}
+          transition={{ duration: 0.3 }}
         >
           <textarea
             ref={textAreaRef}
@@ -131,7 +118,7 @@ function Main({ addConversation }) {
             onCompositionEnd={() => setIsComposing(false)}
           />
           <button
-            onClick={handleCreateConversation}
+            onClick={() => sendMessage(inputText)}
             className="send-button"
             disabled={!inputText.trim() && !isLoading}
             aria-label={isLoading ? "전송 중단" : "메시지 전송"}
@@ -147,9 +134,6 @@ function Main({ addConversation }) {
           </button>
         </motion.div>
       </motion.div>
-      <AnimatePresence>
-        {modalMessage && <Modal message={modalMessage} onClose={() => setModalMessage(null)} />}
-      </AnimatePresence>
     </>
   );
 }

@@ -1,6 +1,7 @@
 // src/components/MarkdownRenderers.js
 import React from "react";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { IoMdCheckmark } from "react-icons/io";
 import { oneLight } from "react-syntax-highlighter/dist/esm/styles/prism";
 
 export const InlineCode = React.memo(({ node, children, ...props }) => {
@@ -31,7 +32,7 @@ export const TempCodeBlock = React.memo(({ node, className, children, ...props }
       <div className="code-header">
         <span className="code-type">{language}</span>
         <button className="copy-button" onClick={handleCopy}>
-          {copied ? "복사 성공!" : "복사"}
+          {copied ? <IoMdCheckmark /> : "복사"}
         </button>
       </div>
       <pre
@@ -40,6 +41,7 @@ export const TempCodeBlock = React.memo(({ node, className, children, ...props }
           borderRadius: "0px 0px 6px 6px",
           padding: "16px",
           backgroundColor: "#f5f5f5",
+          overflowX: "auto"
         }}
       >
         {String(children).replace(/\n$/, "")}
@@ -68,7 +70,7 @@ export const CodeBlock = React.memo(({ node, className, children, ...props }) =>
       <div className="code-header">
         <span className="code-type">{language}</span>
         <button className="copy-button" onClick={handleCopy}>
-          {copied ? "복사 성공!" : "복사"}
+        {copied ? <IoMdCheckmark /> : "복사"}
         </button>
       </div>
       <SyntaxHighlighter
@@ -80,6 +82,7 @@ export const CodeBlock = React.memo(({ node, className, children, ...props }) =>
           borderRadius: "0px 0px 6px 6px",
           padding: "16px",
           backgroundColor: "#f5f5f5",
+          overflowX: "auto"
         }}
       >
         {String(children).replace(/\n$/, "")}

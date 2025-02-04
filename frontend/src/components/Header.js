@@ -1,8 +1,8 @@
 // src/components/Header.js
 import React, { useState, useContext, useRef, useEffect } from "react";
-import { BsSliders, BsCodeSlash, BsLayoutTextSidebar } from "react-icons/bs";
+import { BsLayoutTextSidebar, BsChevronRight, BsSliders, BsCodeSlash } from "react-icons/bs";
 import { SettingsContext } from "../contexts/SettingsContext";
-import { AnimatePresence, motion } from "framer-motion";
+import { motion, AnimatePresence,  } from "framer-motion";
 import modelsData from '../model.json';
 import "../styles/Header.css";
 
@@ -52,7 +52,6 @@ function Header({ toggleSidebar, isSidebarVisible }) {
     }
   };
 
-  // JSX에서 사용
   const labelPosition = getLabelPosition(temperature);
 
   useEffect(() => {
@@ -77,16 +76,23 @@ function Header({ toggleSidebar, isSidebarVisible }) {
   return (
     <div className="header">
       <div className="header-left">
+        {!isSidebarVisible && (
+          <div className="header-icon toggle-icon">
+            <BsLayoutTextSidebar
+              onClick={toggleSidebar}
+              title="사이드바 열기"
+              style={{ strokeWidth: 0.3 }}
+            />
+          </div>
+        )}
+        
         <div className="model-box" onClick={() => setIsModelModalOpen(true)}>
           {models.find(m => m.model_name === model)?.model_alias}
+          <BsChevronRight className="expand-icon" />
         </div>
-        
-        {!isSidebarVisible && (
-          <button className="expand-sidebar" onClick={toggleSidebar} title="사이드바 열기">
-            <BsLayoutTextSidebar style={{ strokeWidth: 0.3 }} />
-          </button>
-        )}
+      </div>
 
+      <div className="header-right">
         <div className="header-icon temperature-icon">
           <BsSliders
             onClick={() => {
@@ -97,7 +103,7 @@ function Header({ toggleSidebar, isSidebarVisible }) {
             }}
             title="온도 (랜덤 확률)"
             className={isFixedTemp ? "disabled" : ""}
-            style={{ fontSize: "18px", strokeWidth: 0.3 }}
+            style={{ strokeWidth: 0.3 }}
           />
 
           <AnimatePresence>
@@ -105,9 +111,9 @@ function Header({ toggleSidebar, isSidebarVisible }) {
               <motion.div
                 className="temp-slider-container"
                 ref={tempSliderRef}
-                initial={{ x: -5, opacity: 0, translateY: "-50%" }}
+                initial={{ x: 5, opacity: 0, translateY: "-50%" }}
                 animate={{ x: 0, opacity: 1, translateY: "-50%" }}
-                exit={{ x: -5, opacity: 0, translateY: "-50%" }}
+                exit={{ x: 5, opacity: 0, translateY: "-50%" }}
                 transition={{ duration: 0.2 }}
               >
                 <div className="slider-wrapper" style={{ position: 'relative', width: '100%' }}>
@@ -131,9 +137,7 @@ function Header({ toggleSidebar, isSidebarVisible }) {
             )}
           </AnimatePresence>
         </div>
-      </div>
-
-      <div className="header-right">
+        
         <div className="header-icon system-message-icon">
           <BsCodeSlash
             onClick={() => {
@@ -144,7 +148,7 @@ function Header({ toggleSidebar, isSidebarVisible }) {
             }}
             title="지시어 설정"
             className={isFixedInstruction ? "disabled" : ""}
-            style={{ strokeWidth: 0.3 }}
+            style={{ fontSize: "20px", strokeWidth: 0.3 }}
           />
           <AnimatePresence>
             {isSystemMessageOpen && (

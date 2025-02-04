@@ -102,6 +102,8 @@ function Chat() {
             body: JSON.stringify({
               conversation_id,
               model: selectedModel.model_name,
+              in_billing: selectedModel.in_billing,
+              out_billing: selectedModel.out_billing,
               temperature: temperature,
               system_message: systemMessage,
               user_message: message,
@@ -278,7 +280,7 @@ function Chat() {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 0, transition: { duration: 0 } }}
-          transition={{ duration: 0.5, delay: 0.2, ease: "easeOut" }}
+          transition={{ duration: 0.3, ease: "easeOut" }}
         >
           {thinkingText}
         </motion.div>
@@ -290,7 +292,7 @@ function Chat() {
         initial={{ y: 8, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         exit={{ y: 8, opacity: 0 }}
-        transition={{ duration: 0.5, delay: 0.2 }}
+        transition={{ duration: 0.3 }}
       >
         <textarea
           ref={textAreaRef}

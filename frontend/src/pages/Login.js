@@ -90,7 +90,7 @@ function Login() {
       </div>
 
       <AnimatePresence>
-        {showModal && <Modal message={modalMessage} onClose={() => setShowModal(false)} />}
+        {showModal && <Modal message={modalMessage} onConfirm={() => setShowModal(false)} />}
       </AnimatePresence>
     </motion.div>
   );

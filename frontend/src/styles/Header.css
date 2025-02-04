@@ -8,16 +8,12 @@
     height: 60px;
     flex: 0 0 60px;
     padding: 0px 20px;
-    font-size: 20px;
-    font-weight: normal;
-    color: #333;
 }
 
 /* 헤더 왼쪽 컨테이너 */
 .header-left {
     display: flex;
     align-items: center;
-    gap: 10px;
     position: relative;
 }
 
@@ -25,24 +21,39 @@
 .header-right {
     display: flex;
     position: relative;
-    padding: 0 10px;
 }
 
 /* 개별 헤더 아이콘 */
 .header-icon {
     display: flex;
-    padding: 0 2px;
-    font-size: 20px;
+    align-items: center;
+    padding: 0 10px;
+    height: 40px;
+    font-size: 18px;
     cursor: pointer;
+}
+
+.toggle-icon {
+    padding: 0 10px;
 }
 
 /* 모델 선택 박스 */
 .model-box {
+    display: flex;
+    align-items: center;
     padding: 10px 10px 12px 10px;
-    border-radius: 4px;
-    cursor: pointer;
+    font-size: 20px;
     font-weight: 500;
+    color: #333;
+    cursor: pointer;
     transition: background-color 0.3s ease;
+}
+
+.expand-icon {
+    margin: 1px 0 0 5px;
+    font-size: 12px;
+    color: rgb(180, 180, 180);
+    stroke-width: 1px;
 }
 
 /* 모달 오버레이 배경 블러 효과 */
@@ -63,13 +74,14 @@
 /* 모델 선택 모달 창 */
 .hmodal {
     padding: 20px;
-    border-radius: 8px;
     width: 400px;
     max-height: 80%;
+    font-size: 20px;
+    color: #333;
     overflow-y: auto;
     position: relative;
-    -ms-overflow-style: none;  /* IE and Edge */
-    scrollbar-width: none;  /* Firefox */
+    -ms-overflow-style: none;
+    scrollbar-width: none;
 }
 
 /* 모델 리스트 */
@@ -100,18 +112,16 @@
     font-size: 15px;
 }
 
-.expand-sidebar {
-    padding: 0;
-}
 /* 온도 슬라이더 컨테이너 */
 .temp-slider-container {
     display: flex;
     position: absolute;
-    width: 150px;
+    width: 160px;
     top: 50%;
-    left: 100%;
-    padding: 15px;
-    background-color: white;
+    right: 100%;
+    padding: 0 15px;
+    background: #ffffff;
+    border-radius: 10px;
     z-index: 1;
     animation: fadeIn 0.3s ease;
 }
@@ -143,7 +153,7 @@
 
 .slider-value {
     position: absolute;
-    top: 35px;
+    top: 34px;
     background-color: transparent;
     color: #333;
     padding: 0;
@@ -160,7 +170,7 @@
     top: 50%; /* 수직 중앙 정렬 */
     right: 100%;
     transform: translateY(-50%); /* 정확한 수직 중앙 정렬 */
-    width: 400px;
+    width: 450px;
     background-color: rgb(248, 248, 248);
     padding: 5px;
     margin-right: 10px;
@@ -186,11 +196,17 @@
 }
 
 /* 반응형 디자인 */
+@media (max-width: 840px) {
+    .system-message-container {
+        width: 380px;
+    }
+}
+
 @media (max-width: 768px) {
     .header {
         padding: 0 10px;
     }
     .system-message-container {
-        width: 280px;
+        width: calc(100vw - 120px);
     }
 }

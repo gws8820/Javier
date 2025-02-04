@@ -2,7 +2,7 @@
 .sidebar {
     display: flex;
     flex-direction: column;
-    width: 280px;
+    width: 260px;
     height: 100dvh;
     box-sizing: border-box;
     border-right: 1px solid rgb(240, 240, 240);
@@ -11,12 +11,10 @@
     position: fixed;
     left: 0;
     top: 0;
-    -ms-overflow-style: none;  /* IE and Edge */
-    scrollbar-width: none;  /* Firefox */
 }
 
-.sidebar::-webkit-scrollbar {
-    display: none;
+.sidebar .header-icon {
+    padding: 0;
 }
 
 /* 버튼 스타일 */
@@ -72,11 +70,8 @@
     flex: 1 1 auto;
     overflow-y: auto;
     list-style-type: none;
-}
-
-.conversation-list {
-    margin: 0;
-    padding: 10px;
+    -ms-overflow-style: none;
+    scrollbar-width: none;
 }
 
 .conversation-item {
@@ -162,21 +157,19 @@
 .user-billing {
     padding: 20px;
     text-align: center;
-    border-bottom: 1px solid rgb(240, 240, 240);
 }
 
-.logout-button {
+.dropdown-button {
     width: 100%;
     text-align: center;
-    background: none;
-    border: none;
     cursor: pointer;
-    padding: 20px;
+    padding: 20px 0;
     font-size: 16px;
     color: #333;
+    border-top: 1px solid rgb(240, 240, 240);
 }
 
-.logout-button:hover {
+.dropdown-button:hover {
     background-color: #f0f0f0;
 }
 
