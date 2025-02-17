@@ -9,7 +9,10 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[os.getenv('REACT_URL')],
+    allow_origins=[
+        os.getenv('PRODUCTION_URL'),
+        os.getenv('DEVELOPMENT_URL')
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

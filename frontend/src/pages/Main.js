@@ -2,14 +2,15 @@
 import React, { useState, useContext, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { FaPaperPlane, FaStop } from "react-icons/fa";
+import { GoPlus, GoGlobe, GoUnlock } from "react-icons/go";
 import { ImSpinner8 } from "react-icons/im";
 import { SettingsContext } from "../contexts/SettingsContext";
 import { motion } from "framer-motion";
 import axios from "axios";
-import modelsData from '../model.json';
+import modelsData from '../models.json';
 import "../styles/Common.css";
 
-function Main({ addConversation }) {
+function Main({ addConversation, isMobile }) {
   const navigate = useNavigate();
   const [inputText, setInputText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -20,6 +21,9 @@ function Main({ addConversation }) {
     model,
     temperature,
     systemMessage,
+    isFixedModel,
+    isDAN,
+    setIsDAN
   } = useContext(SettingsContext);
 
   const models = modelsData.models;
@@ -66,7 +70,7 @@ function Main({ addConversation }) {
     const textarea = textAreaRef.current;
     if (textarea) {
       textarea.style.height = "auto";
-      const newHeight = Math.min(textarea.scrollHeight, 200);
+      const newHeight = Math.min(textarea.scrollHeight, 160);
       textarea.style.height = `${newHeight}px`;
     }
   }, []);
@@ -76,7 +80,7 @@ function Main({ addConversation }) {
   }, [inputText, adjustTextareaHeight]);
 
   const handleKeyDown = (event) => {
-    if (event.key === 'Enter' && !event.shiftKey && !isComposing) {
+    if (event.key === 'Enter' && !event.shiftKey && !isComposing && !isMobile) {
       event.preventDefault();
       sendMessage(inputText);
     }
@@ -101,22 +105,37 @@ function Main({ addConversation }) {
           안녕하세요, 무엇을 도와드릴까요?
         </motion.div>
         <motion.div
-          className="input-area main-input-area"
+          className="input-container main-input-container"
           initial={{ y: 5 }}
           animate={{ y: 0 }}
           exit={{ y: 5 }}
           transition={{ duration: 0.3 }}
         >
-          <textarea
-            ref={textAreaRef}
-            className="message-input"
-            placeholder="오늘 어떤 일이 있었나요?"
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-            onKeyDown={handleKeyDown}
-            onCompositionStart={() => setIsComposing(true)}
-            onCompositionEnd={() => setIsComposing(false)}
-          />
+          <div className="input-area">
+            <textarea
+              ref={textAreaRef}
+              className="message-input"
+              placeholder="오늘 어떤 일이 있었나요?"
+              value={inputText}
+              onChange={(e) => setInputText(e.target.value)}
+              onKeyDown={handleKeyDown}
+              onCompositionStart={() => setIsComposing(true)}
+              onCompositionEnd={() => setIsComposing(false)}
+            />
+            <div className="button-area">
+              <div className="add-file button"><GoPlus style={{ strokeWidth: 0.5 }} /></div>
+              <div className="search button"><GoGlobe style={{ strokeWidth: 0.5 }} />검색</div>
+              <div 
+                className={`dan button ${isFixedModel ? "button-disabled" : isDAN ? "button-active" : ""}`}
+                onClick={() => {
+                  if (isFixedModel) return;
+                  setIsDAN(!isDAN);
+                }}
+              >
+                <GoUnlock style={{ strokeWidth: 0.5 }} />DAN
+              </div>
+            </div>
+          </div>
           <button
             onClick={() => sendMessage(inputText)}
             className="send-button"

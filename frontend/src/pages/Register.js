@@ -76,7 +76,7 @@ function Register() {
       <div className="logo">
         <p>Javier</p>
       </div>
-      <div className="input-container">
+      <div className="auth-input-container">
         <input 
           className="name field" 
           type="text" 

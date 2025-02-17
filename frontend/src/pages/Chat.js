@@ -2,15 +2,16 @@
 import React, { useState, useEffect, useCallback, useRef, useContext } from "react";
 import { useParams, useLocation } from "react-router-dom";
 import { FaPaperPlane, FaStop } from "react-icons/fa";
+import { GoPlus, GoGlobe, GoUnlock } from "react-icons/go";
 import { ImSpinner8 } from "react-icons/im";
 import { SettingsContext } from "../contexts/SettingsContext";
 import { motion } from "framer-motion";
 import axios from "axios";
-import modelsData from '../model.json';
+import modelsData from '../models.json';
 import Message from "../components/Message";
 import "../styles/Common.css";
 
-function Chat() {
+function Chat({isMobile}) {
   const { conversation_id } = useParams();
   const location = useLocation();
   const [messages, setMessages] = useState([]);
@@ -40,7 +41,10 @@ function Chat() {
     updateModel,
     updateTemperature,
     updateInstruction,
-    INFERENCE_MODELS
+    isFixedModel,
+    isInferenceModel,
+    isDAN,
+    setIsDAN
   } = useContext(SettingsContext);
 
   const models = modelsData.models;
@@ -83,7 +87,7 @@ function Chat() {
           throw new Error("선택한 모델이 유효하지 않습니다.");
         }
 
-        if (INFERENCE_MODELS.includes(selectedModel.model_name)) {
+        if (isInferenceModel) {
           setIsThinking(true);
           setThinkingText("생각 중");
           let dotCount = 0;
@@ -104,9 +108,12 @@ function Chat() {
               model: selectedModel.model_name,
               in_billing: selectedModel.in_billing,
               out_billing: selectedModel.out_billing,
+              ...(selectedModel.search_billing && { search_billing: selectedModel.search_billing }),
               temperature: temperature,
               system_message: systemMessage,
               user_message: message,
+              dan: isDAN,
+              stream: selectedModel.stream
             }),
             credentials: "include",
             signal: controller.signal
@@ -174,7 +181,8 @@ function Chat() {
       temperature,
       systemMessage,
       updateAssistantMessage,
-      INFERENCE_MODELS
+      isDAN,
+      isInferenceModel
     ]
   );
 
@@ -214,7 +222,7 @@ function Chat() {
     const textarea = textAreaRef.current;
     if (textarea) {
       textarea.style.height = "auto";
-      const newHeight = Math.min(textarea.scrollHeight, 200);
+      const newHeight = Math.min(textarea.scrollHeight, 160);
       textarea.style.height = `${newHeight}px`;
     }
   }, []);
@@ -257,7 +265,7 @@ function Chat() {
   }, [messages, scrollOnSend]);
 
   const handleKeyDown = (event) => {
-    if (event.key === 'Enter' && !event.shiftKey && !isComposing) {
+    if (event.key === 'Enter' && !event.shiftKey && !isComposing && !isMobile) {
       event.preventDefault();
       sendMessage(inputText);
     }
@@ -276,11 +284,11 @@ function Chat() {
         ))}
       {isThinking && (
         <motion.div 
-          className="chat-message think"
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 0, transition: { duration: 0 } }}
-          transition={{ duration: 0.3, ease: "easeOut" }}
+          className="chat-message think" 
+          initial={{ opacity: 0 }} 
+          animate={{ opacity: 1 }} 
+          exit={{ opacity: 0, transition: { duration: 0 } }} 
+          transition={{ duration: 0.5, delay: 1, ease: "easeOut" }}
         >
           {thinkingText}
         </motion.div>
@@ -288,22 +296,37 @@ function Chat() {
         <div ref={messagesEndRef} />
       </div>
       <motion.div
-        className="input-area chat-input-area"
+        className="input-container chat-input-container"
         initial={{ y: 8, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         exit={{ y: 8, opacity: 0 }}
         transition={{ duration: 0.3 }}
       >
-        <textarea
-          ref={textAreaRef}
-          className="message-input"
-          placeholder="답장 입력하기"
-          value={inputText}
-          onChange={(e) => setInputText(e.target.value)}
-          onKeyDown={handleKeyDown}
-          onCompositionStart={() => setIsComposing(true)}
-          onCompositionEnd={() => setIsComposing(false)}
-        />
+        <div className="input-area">
+          <textarea
+            ref={textAreaRef}
+            className="message-input"
+            placeholder="답장 입력하기"
+            value={inputText}
+            onChange={(e) => setInputText(e.target.value)}
+            onKeyDown={handleKeyDown}
+            onCompositionStart={() => setIsComposing(true)}
+            onCompositionEnd={() => setIsComposing(false)}
+          />
+          <div className="button-area">
+          <div className="add-file button"><GoPlus style={{ strokeWidth: 0.5 }} /></div>
+              <div className="search button"><GoGlobe style={{ strokeWidth: 0.5 }} />검색</div>
+              <div 
+                className={`dan button ${isFixedModel ? "button-disabled" : isDAN ? "button-active" : ""}`}
+                onClick={() => {
+                  if (isFixedModel) return;
+                  setIsDAN(!isDAN);
+                }}
+              >
+                <GoUnlock style={{ strokeWidth: 0.5 }} />DAN
+              </div>
+          </div>
+        </div>
         <button
           className="send-button"
           onClick={() => {

@@ -17,7 +17,7 @@
 }
 
 /* 공통 메시지 입력 및 버튼 스타일 */
-.input-area {
+.input-container {
     display: flex;
     flex-direction: row;
     align-items: center;
@@ -26,21 +26,25 @@
     width: 85%;
     max-width: 720px;
     padding: 10px;
-    background-color: rgb(244, 244, 244);
+    background-color: rgb(251, 251, 251);
     opacity: 1;
 }
 
-/* Main 페이지의 input-area */
-.main-input-area {
+/* Main 페이지의 input-container */
+.main-input-container {
     top: 50%;
     transform: translateY(-50%);
+}
+
+.input-area {
+    width: 100%;
 }
 
 /* 메세지 입력의 textarea */
 .message-input {
     width: 100%;
-    min-height: 80px;
-    padding: 10px;
+    min-height: 40px;
+    padding: 10px 10px 0 10px;
     box-sizing: border-box;
     font-family: "Noto Sans KR", sans-serif;
     font-size: 16px;
@@ -55,8 +59,41 @@
 }
 
 .message-input::-webkit-scrollbar-thumb {
-    background: rgb(236, 236, 236);
+    background: rgb(250, 250, 250);
     border-radius: 4px;
+}
+
+.button-area {
+    display: flex;
+    flex-direction: row;
+    padding: 0 6px;
+    gap: 5px;
+    font-size: 14px;
+}
+
+.button-area .button {
+    display: flex;
+    align-items: center;
+    margin-top: 6px;
+    padding: 10px;
+    gap: 5px;
+    border-radius: 20px;
+    border: 1px solid rgb(240, 240, 240);
+    background-color: rgb(252, 252, 252);
+    transition: color 0.2s ease, background-color 0.2s ease;
+}
+
+.button-area .button:hover {
+    cursor: pointer;
+}
+
+.button-area .button-active {
+    color: rgb(2, 133, 255);
+    background-color: rgb(238, 248, 255);
+}
+
+.button-disabled {
+    color: rgb(93, 93, 93);
 }
 
 /* 공통 버튼 스타일 */
@@ -123,23 +160,22 @@
 /* 반응형 디자인 */
 @media (max-width: 768px) {
     .welcome-message {
-        position: fixed;
+        position: absolute;
         max-width: 90%;
         top: calc(50% - 60px);
         font-size: 20px;
     }
-    .input-area {
+    .input-container {
         width: 90%;
         margin-bottom: 15px;
         padding: 6px;
     }
-    .main-input-area {
+    .main-input-container {
         position: fixed;
         top: auto;
         bottom: 0;
     }
     .message-input {
-        min-height: 60px;
         font-size: 15px;
     }
 }

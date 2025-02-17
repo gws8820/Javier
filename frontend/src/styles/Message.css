@@ -36,9 +36,9 @@
 }
 
 .chat-message.think {
+  padding: 10px 0;
   flex-shrink: 0;
   justify-content: center;
-  height: 56px;
   color: rgb(100, 100, 100);
 }
 

@@ -6,6 +6,7 @@ import { LiaTimesSolid } from "react-icons/lia";
 import { BsLayoutTextSidebar } from "react-icons/bs";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
+import { ClipLoader } from "react-spinners";
 import Modal from "../components/Modal";
 import "../styles/Sidebar.css";
 
@@ -22,7 +23,6 @@ function Sidebar({
 }) {
     const navigate = useNavigate();
     const location = useLocation();
-
     const [userInfo, setUserInfo] = useState(null);
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
@@ -54,6 +54,7 @@ function Sidebar({
             deleteConversation(conversation_id);
             setError(null);
 
+            // 현재 보고 있는 대화라면 메인 화면으로 이동
             const currentPath = location.pathname;
             const currentConversationId = currentPath.startsWith('/chat/')
                 ? currentPath.split('/chat/')[1]
@@ -162,9 +163,9 @@ function Sidebar({
                     </button>
                 </div>
 
-                <div className="conversation-container">
+                <div className={`conversation-container ${loading ? 'loading' : ''}`}>
                     {loading ? (
-                        <p>로딩 중...</p>
+                        <ClipLoader loading={true} size={40} />
                     ) : error ? (
                         <div style={{ padding: "20px" }}>{error}</div>
                     ) : (

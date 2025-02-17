@@ -40,7 +40,6 @@ function Login() {
         { email, password },
         { withCredentials: true }
       );
-      // 로그인 성공 시 페이지 새로고침 또는 원하는 이동 처리
       window.location.reload();
     } catch (error) {
       const detail = error.response?.data?.detail;
@@ -63,7 +62,7 @@ function Login() {
       <div className="logo">
         <p>Javier</p>
       </div>
-      <div className="input-container">
+      <div className="auth-input-container">
         <input
           className="id field"
           type="email"

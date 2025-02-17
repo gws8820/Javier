@@ -8,6 +8,7 @@ import {
   Navigate,
   useLocation
 } from "react-router-dom";
+import { ClipLoader } from 'react-spinners';
 import { motion, AnimatePresence } from "framer-motion";
 
 import Sidebar from "./components/Sidebar";
@@ -106,7 +107,11 @@ function App() {
   };
 
   if (isLoggedIn === null) {
-    return <div>Loading...</div>;
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100dvh', marginBottom: '30px' }}>
+        <ClipLoader loading={true} size={50} />
+      </div>
+    );
   }
 
   return (
@@ -128,7 +133,6 @@ function App() {
   );
 }
 
-// 실제 화면을 구성하는 내부 레이아웃 컴포넌트
 function AppLayout({
   isLoggedIn,
   isSidebarVisible,
@@ -243,7 +247,7 @@ function AppLayout({
                 path="/"
                 element={
                   isLoggedIn ? (
-                    <Main addConversation={addConversation} />
+                    <Main addConversation={addConversation} isMobile={isMobile} />
                   ) : (
                     <Navigate to="/login" />
                   )
@@ -253,7 +257,7 @@ function AppLayout({
                 path="/chat/:conversation_id"
                 element={
                   isLoggedIn ? (
-                    <Chat fetchConversations={fetchConversations} />
+                    <Chat isMobile={isMobile} />
                   ) : (
                     <Navigate to="/login" />
                   )

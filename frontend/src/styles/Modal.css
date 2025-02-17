@@ -19,8 +19,8 @@
     align-items: center;
     justify-content: center;
     max-width: 80%;
-    padding: 40px 60px;
-    gap: 6px;
+    padding: 40px;
+    gap: 10px;
     background: #fff;
     border-radius: 10px;
 }
@@ -30,9 +30,9 @@
     font-size: 20px;
 }
 
-.button {
+.modal-button button {
     margin: 0 5px;
-    padding: 15px 60px;
+    padding: 15px 50px;
     font-size: 16px;
     border: 1px solid rgb(240, 240, 240);
     border-radius: 5px;
@@ -41,19 +41,10 @@
     transition: background-color 0.3s ease;
 }
 
-.button:hover {
+.modal-button button:hover {
     background-color: rgb(240, 240, 240);
 }
 
 .highlight:hover {
     background-color: rgb(255, 100, 100)
-}
-
-@media (max-width: 768px) {
-    .modal {
-        padding: 30px 30px;
-    }
-    .button {
-        padding: 15px 50px;
-    }
 }

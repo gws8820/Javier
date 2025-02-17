@@ -11,7 +11,6 @@ from datetime import datetime
 from jwt.exceptions import ExpiredSignatureError, InvalidTokenError
 
 load_dotenv()
-
 router = APIRouter()
 
 # MongoDB 설정
@@ -89,7 +88,8 @@ async def login(user: LoginUser):
         key="access_token",
         value=token,
         httponly=True,
-        samesite='Lax'
+        samesite='Lax',
+        max_age=60 * 60 * 24 * 7
     )
     return response
 

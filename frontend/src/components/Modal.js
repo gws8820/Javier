@@ -15,17 +15,17 @@ function Modal({ message, onConfirm, onCancel, showCancelButton = false }) {
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-content">{message}</div>
         <div className="modal-button">
+          {showCancelButton && (
+            <button className="button" onClick={() => onCancel()}>
+              취소
+            </button>
+          )}
           <button
             className={`button ${showCancelButton ? 'highlight' : ''}`}
             onClick={() => onConfirm()}
           >
             확인
           </button>
-          {showCancelButton && (
-            <button className="button" onClick={() => onCancel()}>
-              취소
-            </button>
-          )}
         </div>
       </div>
     </motion.div>,

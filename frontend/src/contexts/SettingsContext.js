@@ -1,37 +1,49 @@
 import React, { createContext, useState } from "react";
-
+import modelsData from '../models.json';
 export const SettingsContext = createContext();
-
-const FIXED_TEMP_MODELS = ["o1-preview", "o1-mini"];
-const FIXED_INSTRUCTION_MODELS = ["o1-preview", "o1-mini"];
-const INFERENCE_MODELS = ["o1-preview", "o1-mini", "gemini-2.0-flash-thinking-exp-01-21", "deepseek-r1"];
-
 export const SettingsProvider = ({ children }) => {
   const [model, setModel] = useState("gpt-4o");
   const [model_alias, setModelAlias] = useState("GPT 4o");
   const [temperature, setTemperature] = useState(0.5);
   const [systemMessage, setSystemMessage] = useState("");
+  const [isDAN, setIsDAN] = useState(false);
+  const [isFixedModel, setIsFixedModel] = useState(false);
+  const [isInferenceModel, setIsInferenceModel] = useState(false);
 
+  const FIXED_SETTINGS_MODELS = modelsData.models
+  .filter(model => model.fixed_settings)
+  .map(model => model.model_name);
+
+  const INFERENCE_MODELS = modelsData.models
+    .filter((model) => model.inference)
+    .map((model) => model.model_name);
+  
   const updateModel = (newModel) => {
     setModel(newModel);
-    if (FIXED_TEMP_MODELS.includes(newModel)) {
+  
+    const isFixed = FIXED_SETTINGS_MODELS.includes(newModel);
+    const isInference = INFERENCE_MODELS.includes(newModel);
+  
+    setIsFixedModel(isFixed);
+    setIsInferenceModel(isInference);
+  
+    if (isFixed) {
       setTemperature(1);
+      setSystemMessage("");
+      setIsDAN(false);
     } else {
       setTemperature(0.5);
     }
-
-    if (FIXED_INSTRUCTION_MODELS.includes(newModel))
-      setSystemMessage("");
   };
 
   const updateTemperature = (newTemp) => {
-    if (!FIXED_TEMP_MODELS.includes(model)) {
+    if (!isFixedModel) {
       setTemperature(newTemp);
     }
   };
 
   const updateInstruction = (newInst) => {
-    if (!FIXED_INSTRUCTION_MODELS.includes(model)) {
+    if (!isFixedModel) {
       setSystemMessage(newInst);
     }
   };
@@ -47,9 +59,10 @@ export const SettingsProvider = ({ children }) => {
         setModelAlias,
         updateTemperature,
         updateInstruction,
-        FIXED_TEMP_MODELS,
-        FIXED_INSTRUCTION_MODELS,
-        INFERENCE_MODELS
+        isFixedModel,
+        isInferenceModel,
+        isDAN,
+        setIsDAN
       }}
     >
       {children}

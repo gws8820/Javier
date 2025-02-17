@@ -3,7 +3,7 @@ import React, { useState, useContext, useRef, useEffect } from "react";
 import { BsLayoutTextSidebar, BsChevronRight, BsSliders, BsCodeSlash } from "react-icons/bs";
 import { SettingsContext } from "../contexts/SettingsContext";
 import { motion, AnimatePresence,  } from "framer-motion";
-import modelsData from '../model.json';
+import modelsData from '../models.json';
 import "../styles/Header.css";
 
 function Header({ toggleSidebar, isSidebarVisible }) {
@@ -15,15 +15,11 @@ function Header({ toggleSidebar, isSidebarVisible }) {
     setModelAlias,
     updateTemperature,
     updateInstruction,
-    FIXED_TEMP_MODELS,
-    FIXED_INSTRUCTION_MODELS,
+    isFixedModel,
+    isDAN
   } = useContext(SettingsContext);
 
   const models = modelsData.models;
-
-  const isFixedTemp = FIXED_TEMP_MODELS.includes(model);
-  const isFixedInstruction = FIXED_INSTRUCTION_MODELS.includes(model);
-
   const [isModelModalOpen, setIsModelModalOpen] = useState(false);
   const [isTempSliderOpen, setIsTempSliderOpen] = useState(false);
   const [isSystemMessageOpen, setIsSystemMessageOpen] = useState(false);
@@ -96,13 +92,13 @@ function Header({ toggleSidebar, isSidebarVisible }) {
         <div className="header-icon temperature-icon">
           <BsSliders
             onClick={() => {
-              if (!isFixedTemp) {
+              if (!isFixedModel) {
                 setIsTempSliderOpen(!isTempSliderOpen);
                 setIsSystemMessageOpen(false);
               }
             }}
             title="온도 (랜덤 확률)"
-            className={isFixedTemp ? "disabled" : ""}
+            className={isFixedModel ? "disabled" : ""}
             style={{ strokeWidth: 0.3 }}
           />
 
@@ -141,13 +137,13 @@ function Header({ toggleSidebar, isSidebarVisible }) {
         <div className="header-icon system-message-icon">
           <BsCodeSlash
             onClick={() => {
-              if (!isFixedInstruction) {
+              if (!isFixedModel) {
                 setIsSystemMessageOpen(!isSystemMessageOpen);
                 setIsTempSliderOpen(false);
               }
             }}
             title="지시어 설정"
-            className={isFixedInstruction ? "disabled" : ""}
+            className={isFixedModel||isDAN ? "disabled" : ""}
             style={{ fontSize: "20px", strokeWidth: 0.3 }}
           />
           <AnimatePresence>
