@@ -142,7 +142,6 @@ function AppLayout({
   error,
   deleteConversation,
   deleteAllConversation,
-  fetchConversations,
   addConversation,
   setError,
 }) {
@@ -150,14 +149,14 @@ function AppLayout({
   const hideLayoutRoutes = ["/login", "/register"];
   const shouldShowLayout = !hideLayoutRoutes.includes(location.pathname);
 
-  const isMobile = window.innerWidth <= 768;
-  const marginLeft = shouldShowLayout && !isMobile && isSidebarVisible ? 260 : 0;
-
+  const isMobile = /Mobi|Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  const isResponsive = window.innerWidth <= 768;
+  const marginLeft = shouldShowLayout && !isResponsive && isSidebarVisible ? 260 : 0;
   return (
     <div style={{ display: "flex", position: "relative" }}>
       {shouldShowLayout && (
         <>
-          {!isMobile && (
+          {!isResponsive && (
             <motion.div
               initial={{ x: isSidebarVisible ? 0 : -260 }}
               animate={{ x: isSidebarVisible ? 0 : -260 }}
@@ -179,12 +178,12 @@ function AppLayout({
                 deleteConversation={deleteConversation}
                 deleteAllConversation={deleteAllConversation}
                 setError={setError}
-                isMobile={isMobile}
+                isResponsive={isResponsive}
               />
             </motion.div>
           )}
 
-          {isMobile && (
+          {isResponsive && (
             <div
               style={{
                 position: "fixed",
@@ -205,14 +204,14 @@ function AppLayout({
                 deleteConversation={deleteConversation}
                 deleteAllConversation={deleteAllConversation}
                 setError={setError}
-                isMobile={isMobile}
+                isResponsive={isResponsive}
               />
             </div>
           )}
         </>
       )}
 
-      {isMobile && isSidebarVisible && shouldShowLayout && (
+      {isResponsive && isSidebarVisible && shouldShowLayout && (
         <div
           onClick={toggleSidebar}
           style={{

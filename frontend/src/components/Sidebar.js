@@ -19,7 +19,7 @@ function Sidebar({
     deleteConversation,
     deleteAllConversation,
     setError,
-    isMobile,
+    isResponsive,
 }) {
     const navigate = useNavigate();
     const location = useLocation();
@@ -124,12 +124,12 @@ function Sidebar({
 
     const handleNavigate = (conversation_id) => {
         navigate(`/chat/${conversation_id}`);
-        if (isMobile) toggleSidebar();
+        if (isResponsive) toggleSidebar();
     };
 
     const handleNewConversation = () => {
         navigate("/");
-        if (isMobile) toggleSidebar();
+        if (isResponsive) toggleSidebar();
     };
 
     const currentConversationId = location.pathname.startsWith('/chat/')
@@ -142,7 +142,7 @@ function Sidebar({
 
     return (
         <>
-            <div className={`sidebar ${isMobile && isSidebarVisible ? "visible" : ""}`}>
+            <div className={`sidebar ${isResponsive && isSidebarVisible ? "visible" : ""}`}>
                 <div className="header">
                     <div className="Logo">Javier</div>
                     <div className="header-icon toggle-icon">

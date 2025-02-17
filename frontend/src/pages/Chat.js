@@ -11,11 +11,13 @@ import modelsData from '../models.json';
 import Message from "../components/Message";
 import "../styles/Common.css";
 
-function Chat({isMobile}) {
+function Chat({ isMobile }) {
   const { conversation_id } = useParams();
   const location = useLocation();
+
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState("");
+
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [scrollOnSend, setScrollOnSend] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -26,12 +28,6 @@ function Chat({isMobile}) {
   const textAreaRef = useRef(null);
   const messagesEndRef = useRef(null);
   const abortControllerRef = useRef(null);
-  const initialMessage = useRef(location.state?.initialMessage || null);
-  const sendMessageRef = useRef(null);
-  const updateAssistantMessageRef = useRef(null);
-  const updateInstructionRef = useRef(null);
-  const updateModelRef = useRef(null);
-  const updateTemperatureRef = useRef(null);
   const thinkingIntervalRef = useRef(null);
 
   const {
@@ -73,6 +69,7 @@ function Chat({isMobile}) {
   const sendMessage = useCallback(
     async (message) => {
       if (!message.trim()) return;
+
       setMessages((prev) => [...prev, { role: "user", content: message }]);
       setInputText("");
       setIsLoading(true);
@@ -132,8 +129,10 @@ function Chat({isMobile}) {
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
+
           const chunk = decoder.decode(value, { stream: true });
           partialData += chunk;
+
           const lines = partialData.split("\n\n");
           for (let i = 0; i < lines.length - 1; i++) {
             const line = lines[i];
@@ -187,36 +186,32 @@ function Chat({isMobile}) {
   );
 
   useEffect(() => {
-    sendMessageRef.current = sendMessage;
-    updateAssistantMessageRef.current = updateAssistantMessage;
-    updateInstructionRef.current = updateInstruction;
-    updateModelRef.current = updateModel;
-    updateTemperatureRef.current = updateTemperature;
-  }, [sendMessage, updateAssistantMessage, updateInstruction, updateModel, updateTemperature]);
-
-  useEffect(() => {
     const initializeChat = async () => {
       try {
         const res = await axios.get(
           `${process.env.REACT_APP_FASTAPI_URL}/conversation/${conversation_id}`,
           { withCredentials: true }
         );
-        updateModelRef.current?.(res.data.model);
-        updateTemperatureRef.current?.(res.data.temperature);
-        updateInstructionRef.current?.(res.data.system_message);
+        updateModel(res.data.model);
+        updateTemperature(res.data.temperature);
+        updateInstruction(res.data.system_message);
+
         const updatedMessages = res.data.messages.map((m) =>
           m.role === "assistant" ? { ...m, isComplete: true } : m
         );
         setMessages(updatedMessages);
-        if (initialMessage.current && res.data.messages.length === 0) {
-          await sendMessageRef.current?.(initialMessage.current);
+
+        if (location.state?.initialMessage && updatedMessages.length === 0) {
+          sendMessage(location.state.initialMessage);
         }
       } catch (err) {
-        updateAssistantMessageRef.current?.("초기화 중 오류 발생: " + err.message, true);
+        updateAssistantMessage("초기화 중 오류 발생: " + err.message, true);
       }
     };
+
     initializeChat();
-  }, [conversation_id]);
+    // eslint-disable-next-line
+  }, [conversation_id, location.state]);
 
   const adjustTextareaHeight = useCallback(() => {
     const textarea = textAreaRef.current;
@@ -234,6 +229,7 @@ function Chat({isMobile}) {
   useEffect(() => {
     const chatContainer = messagesEndRef.current?.parentElement;
     if (!chatContainer) return;
+
     const handleScroll = () => {
       const { scrollTop, clientHeight, scrollHeight } = chatContainer;
       if (scrollHeight - scrollTop - clientHeight > 50) {
@@ -242,8 +238,10 @@ function Chat({isMobile}) {
         setIsAtBottom(true);
       }
     };
+
     chatContainer.addEventListener('scroll', handleScroll);
     handleScroll();
+
     return () => chatContainer.removeEventListener('scroll', handleScroll);
   }, []);
 
@@ -282,19 +280,20 @@ function Chat({isMobile}) {
             isComplete={msg.isComplete}
           />
         ))}
-      {isThinking && (
-        <motion.div 
-          className="chat-message think" 
-          initial={{ opacity: 0 }} 
-          animate={{ opacity: 1 }} 
-          exit={{ opacity: 0, transition: { duration: 0 } }} 
-          transition={{ duration: 0.5, delay: 1, ease: "easeOut" }}
-        >
-          {thinkingText}
-        </motion.div>
-      )}
+        {isThinking && (
+          <motion.div
+            className="chat-message think"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0, transition: { duration: 0 } }}
+            transition={{ duration: 0.5, delay: 1, ease: "easeOut" }}
+          >
+            {thinkingText}
+          </motion.div>
+        )}
         <div ref={messagesEndRef} />
       </div>
+
       <motion.div
         className="input-container chat-input-container"
         initial={{ y: 8, opacity: 0 }}
@@ -314,17 +313,24 @@ function Chat({isMobile}) {
             onCompositionEnd={() => setIsComposing(false)}
           />
           <div className="button-area">
-          <div className="add-file button"><GoPlus style={{ strokeWidth: 0.5 }} /></div>
-              <div className="search button"><GoGlobe style={{ strokeWidth: 0.5 }} />검색</div>
-              <div 
-                className={`dan button ${isFixedModel ? "button-disabled" : isDAN ? "button-active" : ""}`}
-                onClick={() => {
-                  if (isFixedModel) return;
+            <div className="add-file button">
+              <GoPlus style={{ strokeWidth: 0.5 }} />
+            </div>
+            <div className="search button">
+              <GoGlobe style={{ strokeWidth: 0.5 }} />
+              검색
+            </div>
+            <div 
+              className={`dan button ${isFixedModel ? "button-disabled" : isDAN ? "button-active" : ""}`}
+              onClick={() => {
+                if (!isFixedModel) {
                   setIsDAN(!isDAN);
-                }}
-              >
-                <GoUnlock style={{ strokeWidth: 0.5 }} />DAN
-              </div>
+                }
+              }}
+            >
+              <GoUnlock style={{ strokeWidth: 0.5 }} />
+              DAN
+            </div>
           </div>
         </div>
         <button
