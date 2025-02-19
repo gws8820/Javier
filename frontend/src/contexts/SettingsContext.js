@@ -6,47 +6,44 @@ export const SettingsContext = createContext();
 export const SettingsProvider = ({ children }) => {
   const [model, setModel] = useState("gpt-4o");
   const [model_alias, setModelAlias] = useState("GPT 4o");
-  const [temperature, setTemperature] = useState(0.5);
-  const [systemMessage, setSystemMessage] = useState("");
+  const [modelType, setModelType] = useState("");
+  const [temperature, setTemperature] = useState(1);
+  const [systemMessage, setInstruction] = useState("");
   const [isDAN, setIsDAN] = useState(false);
-  const [isFixedModel, setIsFixedModel] = useState(false);
   const [isInferenceModel, setIsInferenceModel] = useState(false);
 
-  const FIXED_SETTINGS_MODELS = modelsData.models
-    .filter(model => model.fixed_settings)
-    .map(model => model.model_name);
-
   const INFERENCE_MODELS = modelsData.models
-    .filter(model => model.inference)
-    .map(model => model.model_name);
+    .filter(m => m.inference)
+    .map(m => m.model_name);
 
   const updateModel = (newModel) => {
     setModel(newModel);
 
-    const isFixed = FIXED_SETTINGS_MODELS.includes(newModel);
-    const isInference = INFERENCE_MODELS.includes(newModel);
+    const selectedModel = modelsData.models.find(m => m.model_name === newModel);
+    const typeOfModel = selectedModel?.type || "";
+    setModelType(typeOfModel);
 
-    setIsFixedModel(isFixed);
+    const isInference = INFERENCE_MODELS.includes(newModel);
     setIsInferenceModel(isInference);
 
-    if (isFixed) {
+    if (typeOfModel === "none") {
       setTemperature(1);
-      setSystemMessage("");
+      setInstruction("");
       setIsDAN(false);
-    } else {
-      setTemperature(0.5);
+    } else if (typeOfModel === "reason") {
+      setTemperature(1);
     }
   };
 
   const updateTemperature = (newTemp) => {
-    if (!isFixedModel) {
+    if (modelType !== "none" && modelType !== "reason") {
       setTemperature(newTemp);
     }
   };
 
   const updateInstruction = (newInst) => {
-    if (!isFixedModel) {
-      setSystemMessage(newInst);
+    if (modelType !== "none") {
+      setInstruction(newInst);
     }
   };
 
@@ -60,15 +57,15 @@ export const SettingsProvider = ({ children }) => {
       value={{
         model,
         model_alias,
+        modelType,
         temperature,
-        systemMessage, 
+        systemMessage,
+        isInferenceModel,
+        isDAN,
         updateModel,
         setModelAlias,
         updateTemperature,
         updateInstruction,
-        isFixedModel,
-        isInferenceModel,
-        isDAN,
         setIsDAN
       }}
     >

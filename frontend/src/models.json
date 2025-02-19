@@ -8,10 +8,12 @@
         "in_billing": "2.5",
         "out_billing": "10",
         "inference": false,
-        "search": false,
-        "image": true,
         "stream": true,
-        "fixed_settings": false
+        "capabilities": {
+          "image": true,
+          "search": false
+        },
+        "type": "default"
       },
       {
         "model_name": "gpt-4o-mini",
@@ -21,10 +23,12 @@
         "in_billing": "0.15",
         "out_billing": "0.6",
         "inference": false,
-        "search": false,
-        "image": true,
         "stream": true,
-        "fixed_settings": false
+        "capabilities": {
+          "image": true,
+          "search": false
+        },
+        "type": "default"
       },
       {
         "model_name": "o1",
@@ -34,10 +38,12 @@
         "in_billing": "15",
         "out_billing": "60",
         "inference": true,
-        "search": false,
-        "image": true,
         "stream": false,
-        "fixed_settings": true
+        "capabilities": {
+          "image": true,
+          "search": false
+        },
+        "type": "reason"
       },
       {
         "model_name": "o3-mini",
@@ -47,10 +53,12 @@
         "in_billing": "1.1",
         "out_billing": "4.4",
         "inference": true,
-        "search": false,
-        "image": false,
         "stream": true,
-        "fixed_settings": true
+        "capabilities": {
+          "image": false,
+          "search": false
+        },
+        "type": "reason"
       },
       {
         "model_name": "o1-mini",
@@ -60,75 +68,12 @@
         "in_billing": "3",
         "out_billing": "12",
         "inference": true,
-        "search": false,
-        "image": false,
         "stream": true,
-        "fixed_settings": true
-      },
-      {
-        "model_name": "chatgpt-4o-latest",
-        "model_alias": "ChatGPT 4o",
-        "description": "ChatGPT 파인튜닝 모델",
-        "endpoint": "/gpt",
-        "in_billing": "5",
-        "out_billing": "15",
-        "inference": false,
-        "search": false,
-        "image": false,
-        "stream": true,
-        "fixed_settings": false
-      },
-      {
-        "model_name": "gemini-2.0-flash",
-        "model_alias": "Gemini 2.0 Flash",
-        "description": "신형 표준 Gemini 모델",
-        "endpoint": "/gemini",
-        "in_billing": "0.1",
-        "out_billing": "0.4",
-        "inference": false,
-        "search": false,
-        "image": true,
-        "stream": true,
-        "fixed_settings": false
-      },
-      {
-        "model_name": "gemini-2.0-flash-thinking-exp-01-21",
-        "model_alias": "Gemini 2.0 Flash Thinking",
-        "description": "추론에 특화된 신형 Gemini 모델",
-        "endpoint": "/gemini",
-        "in_billing": "0",
-        "out_billing": "0",
-        "inference": true,
-        "search": false,
-        "image": true,
-        "stream": true,
-        "fixed_settings": false
-      },
-      {
-        "model_name": "gemini-2.0-pro-exp-02-05",
-        "model_alias": "Gemini 2.0 Pro",
-        "description": "고성능 신형 Gemini 모델",
-        "endpoint": "/gemini",
-        "in_billing": "0",
-        "out_billing": "0",
-        "inference": false,
-        "search": false,
-        "image": true,
-        "stream": true,
-        "fixed_settings": false
-      },
-      {
-        "model_name": "gemini-2.0-flash-lite-preview-02-05",
-        "model_alias": "Gemini 2.0 Flash Lite",
-        "description": "Gemini 2.0 Flash의 경량화 모델",
-        "endpoint": "/gemini",
-        "in_billing": "0.075",
-        "out_billing": "0.15",
-        "inference": false,
-        "search": false,
-        "image": true,
-        "stream": true,
-        "fixed_settings": false
+        "capabilities": {
+          "image": false,
+          "search": false
+        },
+        "type": "none"
       },
       {
         "model_name": "claude-3-5-sonnet-latest",
@@ -138,10 +83,12 @@
         "in_billing": "3",
         "out_billing": "15",
         "inference": false,
-        "search": false,
-        "image": true,
         "stream": true,
-        "fixed_settings": false
+        "capabilities": {
+          "image": true,
+          "search": false
+        },
+        "type": "default"
       },
       {
         "model_name": "claude-3-5-haiku-latest",
@@ -151,10 +98,12 @@
         "in_billing": "0.8",
         "out_billing": "4",
         "inference": false,
-        "search": false,
-        "image": false,
         "stream": true,
-        "fixed_settings": false
+        "capabilities": {
+          "image": false,
+          "search": false
+        },
+        "type": "default"
       },
       {
         "model_name": "claude-3-opus-latest",
@@ -164,10 +113,71 @@
         "in_billing": "15",
         "out_billing": "75",
         "inference": false,
-        "search": false,
-        "image": true,
         "stream": true,
-        "fixed_settings": false
+        "capabilities": {
+          "image": true,
+          "search": false
+        },
+        "type": "default"
+      },      {
+        "model_name": "gemini-2.0-flash",
+        "model_alias": "Gemini 2.0 Flash",
+        "description": "신형 표준 Gemini 모델",
+        "endpoint": "/gemini",
+        "in_billing": "0.1",
+        "out_billing": "0.4",
+        "inference": false,
+        "stream": true,
+        "capabilities": {
+          "image": true,
+          "search": false
+        },
+        "type": "default"
+      },
+      {
+        "model_name": "gemini-2.0-flash-thinking-exp-01-21",
+        "model_alias": "Gemini 2.0 Flash Thinking",
+        "description": "추론에 특화된 신형 Gemini 모델",
+        "endpoint": "/gemini",
+        "in_billing": "0",
+        "out_billing": "0",
+        "inference": true,
+        "stream": true,
+        "capabilities": {
+          "image": true,
+          "search": false
+        },
+        "type": "default"
+      },
+      {
+        "model_name": "gemini-2.0-pro-exp-02-05",
+        "model_alias": "Gemini 2.0 Pro",
+        "description": "고성능 신형 Gemini 모델",
+        "endpoint": "/gemini",
+        "in_billing": "0",
+        "out_billing": "0",
+        "inference": false,
+        "stream": true,
+        "capabilities": {
+          "image": true,
+          "search": false
+        },
+        "type": "default"
+      },
+      {
+        "model_name": "gemini-2.0-flash-lite-preview-02-05",
+        "model_alias": "Gemini 2.0 Flash Lite",
+        "description": "Gemini 2.0 Flash의 경량화 모델",
+        "endpoint": "/gemini",
+        "in_billing": "0.075",
+        "out_billing": "0.15",
+        "inference": false,
+        "stream": true,
+        "capabilities": {
+          "image": true,
+          "search": false
+        },
+        "type": "default"
       },
       {
         "model_name": "sonar",
@@ -178,10 +188,12 @@
         "out_billing": "1",
         "search_billing": "0.005",
         "inference": false,
-        "search": true,
-        "image": false,
         "stream": true,
-        "fixed_settings": false
+        "capabilities": {
+          "image": false,
+          "search": true
+        },
+        "type": "default"
       },
       {
         "model_name": "sonar-pro",
@@ -192,10 +204,12 @@
         "out_billing": "15",
         "search_billing": "0.015",
         "inference": false,
-        "search": true,
-        "image": false,
         "stream": true,
-        "fixed_settings": false
+        "capabilities": {
+          "image": false,
+          "search": true
+        },
+        "type": "default"
       },
       {
         "model_name": "deepseek-r1",
@@ -205,10 +219,12 @@
         "in_billing": "9",
         "out_billing": "9",
         "inference": true,
-        "search": false,
-        "image": false,
         "stream": true,
-        "fixed_settings": false
+        "capabilities": {
+          "image": false,
+          "search": false
+        },
+        "type": "default"
       },
       {
         "model_name": "deepseek-v3",
@@ -218,10 +234,12 @@
         "in_billing": "2.8",
         "out_billing": "2.8",
         "inference": false,
-        "search": false,
-        "image": false,
         "stream": true,
-        "fixed_settings": false
+        "capabilities": {
+          "image": false,
+          "search": false
+        },
+        "type": "default"
       },
       {
         "model_name": "grok-2-latest",
@@ -231,10 +249,12 @@
         "in_billing": "2",
         "out_billing": "10",
         "inference": false,
-        "search": false,
-        "image": false,
         "stream": true,
-        "fixed_settings": false
+        "capabilities": {
+          "image": true,
+          "search": false
+        },
+        "type": "default"
       },
       {
         "model_name": "llama3.3-70b",
@@ -244,10 +264,12 @@
         "in_billing": "2.8",
         "out_billing": "2.8",
         "inference": false,
-        "search": false,
-        "image": false,
         "stream": true,
-        "fixed_settings": false
+        "capabilities": {
+          "image": false,
+          "search": false
+        },
+        "type": "default"
       },
       {
         "model_name": "llama3.2-3b",
@@ -257,10 +279,12 @@
         "in_billing": "0.4",
         "out_billing": "0.4",
         "inference": false,
-        "search": false,
-        "image": false,
         "stream": true,
-        "fixed_settings": false
+        "capabilities": {
+          "image": false,
+          "search": false
+        },
+        "type": "default"
       },
       {
         "model_name": "llama3.1-405b",
@@ -270,10 +294,12 @@
         "in_billing": "3.596",
         "out_billing": "3.596",
         "inference": false,
-        "search": false,
-        "image": false,
         "stream": true,
-        "fixed_settings": false
+        "capabilities": {
+          "image": false,
+          "search": false
+        },
+        "type": "default"
       }
     ]
   }

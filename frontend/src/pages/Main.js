@@ -19,9 +19,11 @@ function Main({ addConversation, isMobile }) {
 
   const {
     model,
+    modelType,
     temperature,
     systemMessage,
-    isFixedModel,
+    updateTemperature,
+    updateInstruction,
     isDAN,
     setIsDAN
   } = useContext(SettingsContext);
@@ -76,6 +78,12 @@ function Main({ addConversation, isMobile }) {
   }, []);
 
   useEffect(() => {
+    updateTemperature(1);
+    updateInstruction("");
+    // eslint-disable-next-line
+  }, []);
+
+  useEffect(() => {
     adjustTextareaHeight();
   }, [inputText, adjustTextareaHeight]);
 
@@ -126,10 +134,11 @@ function Main({ addConversation, isMobile }) {
               <div className="add-file button"><GoPlus style={{ strokeWidth: 0.5 }} /></div>
               <div className="search button"><GoGlobe style={{ strokeWidth: 0.5 }} />검색</div>
               <div 
-                className={`dan button ${isFixedModel ? "button-disabled" : isDAN ? "button-active" : ""}`}
+                className={`dan button ${modelType !== "none" ? isDAN ? "button-active" : "" : "button-disabled"}`}
                 onClick={() => {
-                  if (isFixedModel) return;
-                  setIsDAN(!isDAN);
+                  if (modelType !== "none") {
+                    setIsDAN(!isDAN);
+                  }
                 }}
               >
                 <GoUnlock style={{ strokeWidth: 0.5 }} />DAN

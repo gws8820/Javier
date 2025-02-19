@@ -111,6 +111,7 @@ def get_response(request: ChatRequest, settings: ApiSettings, user: User = Depen
                     time.sleep(0.03)
                 
         except Exception as e:
+            response_text = " "
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
         finally:
             formatted_response = {"role": "assistant", "content": response_text}
@@ -135,7 +136,7 @@ def get_alias(prompt: str) -> str:
     completion = client.chat.completions.create(
         model="gpt-4o-mini",
         temperature=0.1,
-        max_tokens=20,
+        max_tokens=10,
         messages=[{
             "role": "user",
             "content": f"다음 메세지를 20글자 내로 요약해서 별칭을 만들어. "

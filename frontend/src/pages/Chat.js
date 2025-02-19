@@ -32,12 +32,12 @@ function Chat({ isMobile }) {
 
   const {
     model,
+    modelType,
     temperature,
     systemMessage,
     updateModel,
     updateTemperature,
     updateInstruction,
-    isFixedModel,
     isInferenceModel,
     isDAN,
     setIsDAN
@@ -217,7 +217,7 @@ function Chat({ isMobile }) {
     const textarea = textAreaRef.current;
     if (textarea) {
       textarea.style.height = "auto";
-      const newHeight = Math.min(textarea.scrollHeight, 160);
+      const newHeight = Math.min(textarea.scrollHeight, 180);
       textarea.style.height = `${newHeight}px`;
     }
   }, []);
@@ -321,9 +321,9 @@ function Chat({ isMobile }) {
               검색
             </div>
             <div 
-              className={`dan button ${isFixedModel ? "button-disabled" : isDAN ? "button-active" : ""}`}
+              className={`dan button ${modelType !== "none" ? isDAN ? "button-active" : "" : "button-disabled"}`}
               onClick={() => {
-                if (!isFixedModel) {
+                if (modelType !== "none") {
                   setIsDAN(!isDAN);
                 }
               }}

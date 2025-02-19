@@ -9,13 +9,13 @@ import "../styles/Header.css";
 function Header({ toggleSidebar, isSidebarVisible }) {
   const {
     model,
+    modelType,
     temperature,
     systemMessage,
     updateModel,
     setModelAlias,
     updateTemperature,
     updateInstruction,
-    isFixedModel,
     isDAN
   } = useContext(SettingsContext);
 
@@ -29,7 +29,7 @@ function Header({ toggleSidebar, isSidebarVisible }) {
   const systemMessageRef = useRef(null);
 
   const getLabelPosition = (temperature) => {
-    const percent = temperature * 100;
+    const percent = temperature * 50;
     if (percent < 10) {
       return {
         left: '3%',
@@ -92,13 +92,13 @@ function Header({ toggleSidebar, isSidebarVisible }) {
         <div className="header-icon temperature-icon">
           <BsSliders
             onClick={() => {
-              if (!isFixedModel) {
+              if (modelType !== "none" && modelType !== "reason") {
                 setIsTempSliderOpen(!isTempSliderOpen);
                 setIsSystemMessageOpen(false);
               }
             }}
             title="온도 (랜덤 확률)"
-            className={isFixedModel ? "disabled" : ""}
+            className={modelType !== "none" && modelType !== "reason" ? "" : "disabled"}
             style={{ strokeWidth: 0.3 }}
           />
 
@@ -116,7 +116,7 @@ function Header({ toggleSidebar, isSidebarVisible }) {
                   <input
                     type="range"
                     min="0"
-                    max="1"
+                    max="2"
                     step="0.1"
                     value={temperature}
                     onChange={(e) => updateTemperature(parseFloat(e.target.value))}
@@ -137,13 +137,13 @@ function Header({ toggleSidebar, isSidebarVisible }) {
         <div className="header-icon system-message-icon">
           <BsCodeSlash
             onClick={() => {
-              if (!isFixedModel) {
+              if (modelType !== "none") {
                 setIsSystemMessageOpen(!isSystemMessageOpen);
                 setIsTempSliderOpen(false);
               }
             }}
             title="지시어 설정"
-            className={isFixedModel||isDAN ? "disabled" : ""}
+            className={modelType === "none" || isDAN ? "disabled" : ""}
             style={{ fontSize: "20px", strokeWidth: 0.3 }}
           />
           <AnimatePresence>
