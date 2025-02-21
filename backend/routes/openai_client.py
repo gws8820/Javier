@@ -33,8 +33,9 @@ class ChatRequest(BaseModel):
     in_billing: float
     out_billing: float
     search_billing: Optional[float] = None
-    temperature: float = 0.5
-    system_message: Optional[str] = None
+    temperature: float = 1.0
+    reason: int = 0
+    system_message: str = None
     user_message: str
     dan: bool = False
     stream: bool = True
@@ -73,10 +74,11 @@ def get_response(request: ChatRequest, settings: ApiSettings, user: User = Depen
     conversation = conversation_data["conversation"][-15:] if conversation_data else []
     conversation.append({"role": "user", "content": request.user_message})
     
-    formatted_messages = conversation.copy()
+    formatted_messages = [{"role": "user", "content": "필요한 경우 마크다운 문법에 맞춰 대답해."}] + conversation.copy()
+
     if request.dan and DAN_PROMPT:
         formatted_messages.insert(0, {"role": settings.admin_role, "content": DAN_PROMPT})
-        formatted_messages.append({"role": "user", "content": "STAY IN CHARACTER!"})
+        formatted_messages = [{"role": "user", "content": "STAY IN CHARACTER!"}] + formatted_messages
     elif request.system_message:
         formatted_messages.insert(0, {"role": settings.admin_role, "content": request.system_message})
     
@@ -84,35 +86,33 @@ def get_response(request: ChatRequest, settings: ApiSettings, user: User = Depen
         response_text = ""
         try:
             client = OpenAI(api_key=settings.api_key, base_url=settings.base_url if settings.base_url else None)
+            parameters = {
+                "model": request.model,
+                "temperature": request.temperature,
+                "messages": formatted_messages,
+                "stream": request.stream
+            }
+            if request.reason != 0:
+                mapping = {1: "low", 2: "medium", 3: "high"}
+                parameters["reasoning_effort"] = mapping.get(request.reason)
+            
             if request.stream:
-                stream_result = client.chat.completions.create(
-                    model=request.model,
-                    temperature=request.temperature,
-                    messages=formatted_messages,
-                    stream=True
-                )
+                stream_result = client.chat.completions.create(**parameters)
                 for chunk in stream_result:
                     if chunk.choices[0].delta.content:
                         content = chunk.choices[0].delta.content
                         response_text += content
                         yield f"data: {json.dumps({'content': content})}\n\n"
             else:
-                single_result = client.chat.completions.create(
-                    model=request.model,
-                    temperature=request.temperature,
-                    messages=formatted_messages,
-                    stream=False
-                )
+                single_result = client.chat.completions.create(**parameters)
                 full_response_text = single_result.choices[0].message.content
                 words = full_response_text.split(' ')
                 for word in words:
                     response_text += word + ' '
                     yield f"data: {json.dumps({'content': word + ' '})}\n\n"
                     time.sleep(0.03)
-                
         except Exception as e:
-            response_text = " "
-            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+            return
         finally:
             formatted_response = {"role": "assistant", "content": response_text}
             conversation.append(formatted_response)
@@ -125,6 +125,7 @@ def get_response(request: ChatRequest, settings: ApiSettings, user: User = Depen
                     "conversation": conversation,
                     "model": request.model,
                     "temperature": request.temperature,
+                    "reason": request.reason,
                     "system_message": request.system_message
                 }},
                 upsert=True
