@@ -2,7 +2,7 @@
 import React, { useState, useContext, useRef, useEffect } from "react";
 import { BsLayoutTextSidebar, BsChevronRight, BsSliders, BsCodeSlash } from "react-icons/bs";
 import { SettingsContext } from "../contexts/SettingsContext";
-import { motion, AnimatePresence,  } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import modelsData from '../models.json';
 import "../styles/Header.css";
 
@@ -11,25 +11,44 @@ function Header({ toggleSidebar, isSidebarVisible }) {
     model,
     modelType,
     temperature,
+    reason,
     systemMessage,
     updateModel,
-    setModelAlias,
-    updateTemperature,
-    updateInstruction,
-    isDAN
+    setTemperature,
+    setReason,
+    setSystemMessage,
+    isInference,
+    isSearch,
+    isDAN,
+    isFunctionOn
   } = useContext(SettingsContext);
 
   const models = modelsData.models;
   const [isModelModalOpen, setIsModelModalOpen] = useState(false);
   const [isTempSliderOpen, setIsTempSliderOpen] = useState(false);
+  const [isReasonSliderOpen, setIsReasonSliderOpen] = useState(false);
   const [isSystemMessageOpen, setIsSystemMessageOpen] = useState(false);
 
   const modelModalRef = useRef(null);
   const tempSliderRef = useRef(null);
+  const reasonSliderRef = useRef(null);
   const systemMessageRef = useRef(null);
 
-  const getLabelPosition = (temperature) => {
-    const percent = temperature * 50;
+  let modelsList;
+  if (isFunctionOn) {
+    modelsList = models.filter((m) => {
+      if (isSearch && !m.capabilities?.search) return false;
+      if (isInference && !m.inference) return false;
+      return true;
+    });
+  } else {
+    modelsList = models;
+  }
+
+  const currentModelAlias = models.find(m => m.model_name === model)?.model_alias || "모델 선택";
+
+  const getTempPosition = (value) => {
+    const percent = value * 50;
     if (percent < 10) {
       return {
         left: '3%',
@@ -48,14 +67,24 @@ function Header({ toggleSidebar, isSidebarVisible }) {
     }
   };
 
-  const labelPosition = getLabelPosition(temperature);
+  const getReasonPosition = (value) => {
+    if (value === 1) {
+      return { color: 'rgb(214, 70, 70)', left: 'calc(0% - 2px)', transform: 'translateX(0)' };
+    } else if (value === 2) {
+      return { left: '50%', transform: 'translateX(-50%)' };
+    } else if (value === 3) {
+      return { color: 'rgb(2, 133, 255)', left: 'calc(100% + 4px)', transform: 'translateX(-100%)' };
+    }
+    return {};
+  };
+  const reasonLabels = ["low", "medium", "high"];
 
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (isModelModalOpen && modelModalRef.current && !modelModalRef.current.contains(event.target)) {
         setIsModelModalOpen(false);
       }
-      if (isTempSliderOpen && tempSliderRef.current && !tempSliderRef.current.contains(event.target) && !event.target.closest(".temperature-icon")) {
+      if (isTempSliderOpen && tempSliderRef.current && !tempSliderRef.current.contains(event.target) && !event.target.closest(".slider-icon")) {
         setIsTempSliderOpen(false);
       }
       if (isSystemMessageOpen && systemMessageRef.current && !systemMessageRef.current.contains(event.target) && !event.target.closest(".system-message-icon")) {
@@ -81,59 +110,91 @@ function Header({ toggleSidebar, isSidebarVisible }) {
             />
           </div>
         )}
-        
-        <div className="model-box" onClick={() => setIsModelModalOpen(true)}>
-          {models.find(m => m.model_name === model)?.model_alias}
-          <BsChevronRight className="expand-icon" />
-        </div>
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={currentModelAlias}
+            className="model-box"
+            onClick={() => setIsModelModalOpen(true)}
+            initial={{ x: -5, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            transition={{ duration: 0.2 }}
+          >
+            {currentModelAlias}
+            <BsChevronRight className="expand-icon" />
+          </motion.div>
+        </AnimatePresence>
       </div>
 
       <div className="header-right">
-        <div className="header-icon temperature-icon">
+        <div className="header-icon slider-icon">
           <BsSliders
             onClick={() => {
-              if (modelType !== "none" && modelType !== "reason") {
+              if (modelType === "default") {
                 setIsTempSliderOpen(!isTempSliderOpen);
+                setIsSystemMessageOpen(false);
+              } else if (modelType === "reason") {
+                setIsReasonSliderOpen(!isReasonSliderOpen);
                 setIsSystemMessageOpen(false);
               }
             }}
-            title="온도 (랜덤 확률)"
-            className={modelType !== "none" && modelType !== "reason" ? "" : "disabled"}
+            title={modelType === "default" ? "온도" : modelType === "reason" ? "추론 성능" : ""}
+            className={modelType === "default" || modelType === "reason" ? "" : "disabled"}
             style={{ strokeWidth: 0.3 }}
           />
-
           <AnimatePresence>
-            {isTempSliderOpen && (
+            {modelType === "default" && isTempSliderOpen && (
               <motion.div
-                className="temp-slider-container"
+                className="slider-container"
                 ref={tempSliderRef}
                 initial={{ x: 5, opacity: 0, translateY: "-50%" }}
                 animate={{ x: 0, opacity: 1, translateY: "-50%" }}
                 exit={{ x: 5, opacity: 0, translateY: "-50%" }}
                 transition={{ duration: 0.2 }}
               >
-                <div className="slider-wrapper" style={{ position: 'relative', width: '100%' }}>
+                <div className="slider-wrapper">
                   <input
                     type="range"
                     min="0"
                     max="2"
                     step="0.1"
                     value={temperature}
-                    onChange={(e) => updateTemperature(parseFloat(e.target.value))}
+                    onChange={(e) => setTemperature(parseFloat(e.target.value))}
                     className="temperature-slider"
                   />
-                  <div
-                    className="slider-value"
-                    style={labelPosition}
-                  >
+                  <div className="slider-value" style={getTempPosition(temperature)}>
                     {temperature}
+                  </div>
+                </div>
+              </motion.div>
+            )}
+            {modelType === "reason" && isReasonSliderOpen && (
+              <motion.div
+                className="slider-container"
+                ref={reasonSliderRef}
+                initial={{ x: 5, opacity: 0, translateY: "-50%" }}
+                animate={{ x: 0, opacity: 1, translateY: "-50%" }}
+                exit={{ x: 5, opacity: 0, translateY: "-50%" }}
+                transition={{ duration: 0.2 }}
+              >
+                <div className="slider-wrapper">
+                  <input
+                    type="range"
+                    min="1"
+                    max="3"
+                    step="1"
+                    value={reason}
+                    onChange={(e) => setReason(parseInt(e.target.value))}
+                    className="reason-slider"
+                  />
+                  <div className="slider-value" style={getReasonPosition(reason)}>
+                    {reasonLabels[reason - 1]}
                   </div>
                 </div>
               </motion.div>
             )}
           </AnimatePresence>
         </div>
-        
+
         <div className="header-icon system-message-icon">
           <BsCodeSlash
             onClick={() => {
@@ -159,7 +220,7 @@ function Header({ toggleSidebar, isSidebarVisible }) {
                 <input
                   type="text"
                   value={systemMessage}
-                  onChange={(e) => updateInstruction(e.target.value)}
+                  onChange={(e) => setSystemMessage(e.target.value)}
                   className="system-message-input"
                   placeholder="지시어를 입력하세요."
                 />
@@ -179,17 +240,16 @@ function Header({ toggleSidebar, isSidebarVisible }) {
           >
             <div className="hmodal" ref={modelModalRef}>
               <div className="model-list">
-                {models.map((m) => (
-                  <div className="model-item" 
+                {modelsList.map((m) => (
+                  <div
+                    className="model-item"
                     key={m.model_name}
                     onClick={() => {
                       updateModel(m.model_name);
-                      setModelAlias(m.model_alias);
                       setIsModelModalOpen(false);
-                  }}>
-                    <div className="model-alias">
-                      {m.model_alias}
-                    </div>
+                    }}
+                  >
+                    <div className="model-alias">{m.model_alias}</div>
                     <div className="model-description">{m.description}</div>
                   </div>
                 ))}

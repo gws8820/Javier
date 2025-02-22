@@ -5,16 +5,14 @@ export const SettingsContext = createContext();
 
 export const SettingsProvider = ({ children }) => {
   const [model, setModel] = useState("gpt-4o");
-  const [model_alias, setModelAlias] = useState("GPT 4o");
   const [modelType, setModelType] = useState("");
   const [temperature, setTemperature] = useState(1);
-  const [systemMessage, setInstruction] = useState("");
+  const [reason, setReason] = useState(2);
+  const [systemMessage, setSystemMessage] = useState("");
+  const [isSearch, setIsSearch] = useState(false);
   const [isDAN, setIsDAN] = useState(false);
-  const [isInferenceModel, setIsInferenceModel] = useState(false);
-
-  const INFERENCE_MODELS = modelsData.models
-    .filter(m => m.inference)
-    .map(m => m.model_name);
+  const [isInference, setIsInference] = useState(false);
+  const [isFunctionOn, setIsFunctionOn] = useState(false);
 
   const updateModel = (newModel) => {
     setModel(newModel);
@@ -23,27 +21,19 @@ export const SettingsProvider = ({ children }) => {
     const typeOfModel = selectedModel?.type || "";
     setModelType(typeOfModel);
 
-    const isInference = INFERENCE_MODELS.includes(newModel);
-    setIsInferenceModel(isInference);
+    setIsInference(selectedModel?.inference);
+    setIsSearch(selectedModel?.capabilities?.search);
 
     if (typeOfModel === "none") {
       setTemperature(1);
-      setInstruction("");
+      setSystemMessage("");
       setIsDAN(false);
+      setReason(0);
     } else if (typeOfModel === "reason") {
       setTemperature(1);
-    }
-  };
-
-  const updateTemperature = (newTemp) => {
-    if (modelType !== "none" && modelType !== "reason") {
-      setTemperature(newTemp);
-    }
-  };
-
-  const updateInstruction = (newInst) => {
-    if (modelType !== "none") {
-      setInstruction(newInst);
+      setReason((prev) => (prev === 0 ? 2 : prev));
+    } else {
+      setReason(0);
     }
   };
 
@@ -56,17 +46,22 @@ export const SettingsProvider = ({ children }) => {
     <SettingsContext.Provider
       value={{
         model,
-        model_alias,
         modelType,
         temperature,
+        reason,
         systemMessage,
-        isInferenceModel,
+        isInference,
+        isSearch,
         isDAN,
+        isFunctionOn,
         updateModel,
-        setModelAlias,
-        updateTemperature,
-        updateInstruction,
-        setIsDAN
+        setTemperature,
+        setReason,
+        setSystemMessage,
+        setIsInference,
+        setIsSearch,
+        setIsDAN,
+        setIsFunctionOn
       }}
     >
       {children}

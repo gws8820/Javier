@@ -1,14 +1,8 @@
 // src/App.js
 import axios from "axios";
 import { useEffect, useState } from "react";
-import {
-  BrowserRouter as Router,
-  Routes,
-  Route,
-  Navigate,
-  useLocation
-} from "react-router-dom";
-import { ClipLoader } from 'react-spinners';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from "react-router-dom";
+
 import { motion, AnimatePresence } from "framer-motion";
 
 import Sidebar from "./components/Sidebar";
@@ -25,10 +19,9 @@ function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(null);
   const [isSidebarVisible, setIsSidebarVisible] = useState(false);
   const [conversations, setConversations] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [isLoadingChat, setIsLoadingChat] = useState(false);
   const [error, setError] = useState(null);
 
-  // 새로운 대화 추가 함수
   const addConversation = (newConversation) => {
     setConversations((prevConversations) => [
       ...prevConversations,
@@ -36,21 +29,18 @@ function App() {
     ]);
   };
 
-  // 대화 삭제 함수
   const deleteConversation = (conversation_id) => {
     setConversations((prevConversations) =>
       prevConversations.filter((conv) => conv.conversation_id !== conversation_id)
     );
   };
 
-  // 전체 대화 삭제 함수
   const deleteAllConversation = () => {
     setConversations([]);
   };
 
-  // 대화 목록 가져오기 함수
   const fetchConversations = async () => {
-    setLoading(true);
+    setIsLoadingChat(true);
     try {
       const response = await axios.get(
         `${process.env.REACT_APP_FASTAPI_URL}/conversations`,
@@ -62,11 +52,10 @@ function App() {
       console.error("Failed to fetch conversations.", error);
       setError("대화를 불러오는 데 실패했습니다.");
     } finally {
-      setLoading(false);
+      setIsLoadingChat(false);
     }
   };
 
-  // 로그인 상태 체크
   useEffect(() => {
     async function checkLoginStatus() {
       try {
@@ -75,7 +64,6 @@ function App() {
           { withCredentials: true }
         );
         setIsLoggedIn(response.data.logged_in);
-        // 로그인된 상태라면 대화 불러오기
         if (response.data.logged_in) {
           fetchConversations();
         }
@@ -86,7 +74,6 @@ function App() {
     checkLoginStatus();
   }, []);
 
-  // 반응형 사이드바 보이기/숨기기 설정
   useEffect(() => {
     const updateSidebarVisibility = () => {
       if (window.innerWidth <= 768) {
@@ -101,18 +88,9 @@ function App() {
     return () => window.removeEventListener("resize", updateSidebarVisibility);
   }, []);
 
-  // 사이드바 토글 함수
   const toggleSidebar = () => {
     setIsSidebarVisible((prev) => !prev);
   };
-
-  if (isLoggedIn === null) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100dvh', marginBottom: '30px' }}>
-        <ClipLoader loading={true} size={50} />
-      </div>
-    );
-  }
 
   return (
     <Router>
@@ -121,7 +99,7 @@ function App() {
         isSidebarVisible={isSidebarVisible}
         toggleSidebar={toggleSidebar}
         conversations={conversations}
-        loading={loading}
+        isLoadingChat={isLoadingChat}
         error={error}
         deleteConversation={deleteConversation}
         deleteAllConversation={deleteAllConversation}
@@ -138,7 +116,7 @@ function AppLayout({
   isSidebarVisible,
   toggleSidebar,
   conversations,
-  loading,
+  isLoadingChat,
   error,
   deleteConversation,
   deleteAllConversation,
@@ -173,7 +151,7 @@ function AppLayout({
                 toggleSidebar={toggleSidebar}
                 isSidebarVisible={isSidebarVisible}
                 conversations={conversations}
-                loading={loading}
+                isLoadingChat={isLoadingChat}
                 error={error}
                 deleteConversation={deleteConversation}
                 deleteAllConversation={deleteAllConversation}
@@ -199,7 +177,7 @@ function AppLayout({
                 toggleSidebar={toggleSidebar}
                 isSidebarVisible={isSidebarVisible}
                 conversations={conversations}
-                loading={loading}
+                isLoadingChat={isLoadingChat}
                 error={error}
                 deleteConversation={deleteConversation}
                 deleteAllConversation={deleteAllConversation}

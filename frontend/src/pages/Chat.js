@@ -2,8 +2,9 @@
 import React, { useState, useEffect, useCallback, useRef, useContext } from "react";
 import { useParams, useLocation } from "react-router-dom";
 import { FaPaperPlane, FaStop } from "react-icons/fa";
-import { GoPlus, GoGlobe, GoUnlock } from "react-icons/go";
+import { GoPlus, GoGlobe, GoLightBulb, GoUnlock } from "react-icons/go";
 import { ImSpinner8 } from "react-icons/im";
+import { ClipLoader } from 'react-spinners';
 import { SettingsContext } from "../contexts/SettingsContext";
 import { motion } from "framer-motion";
 import axios from "axios";
@@ -18,12 +19,13 @@ function Chat({ isMobile }) {
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState("");
 
-  const [isAtBottom, setIsAtBottom] = useState(true);
-  const [scrollOnSend, setScrollOnSend] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingResponse, setIsLoadingResponse] = useState(false);
+  const [isLoadingChat, setIsLoadingChat] = useState(false);
   const [isComposing, setIsComposing] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
   const [thinkingText, setThinkingText] = useState("");
+  const [isAtBottom, setIsAtBottom] = useState(true);
+  const [scrollOnSend, setScrollOnSend] = useState(false);
 
   const textAreaRef = useRef(null);
   const messagesEndRef = useRef(null);
@@ -34,13 +36,19 @@ function Chat({ isMobile }) {
     model,
     modelType,
     temperature,
+    reason,
     systemMessage,
     updateModel,
-    updateTemperature,
-    updateInstruction,
-    isInferenceModel,
+    setTemperature,
+    setSystemMessage,
+    isInference,
+    isSearch,
     isDAN,
-    setIsDAN
+    isFunctionOn,
+    setIsInference,
+    setIsSearch,
+    setIsDAN,
+    setIsFunctionOn
   } = useContext(SettingsContext);
 
   const models = modelsData.models;
@@ -72,7 +80,7 @@ function Chat({ isMobile }) {
 
       setMessages((prev) => [...prev, { role: "user", content: message }]);
       setInputText("");
-      setIsLoading(true);
+      setIsLoadingResponse(true);
       setScrollOnSend(true);
 
       const controller = new AbortController();
@@ -84,7 +92,7 @@ function Chat({ isMobile }) {
           throw new Error("선택한 모델이 유효하지 않습니다.");
         }
 
-        if (isInferenceModel) {
+        if (isInference) {
           setIsThinking(true);
           setThinkingText("생각 중");
           let dotCount = 0;
@@ -107,6 +115,7 @@ function Chat({ isMobile }) {
               out_billing: selectedModel.out_billing,
               ...(selectedModel.search_billing && { search_billing: selectedModel.search_billing }),
               temperature: temperature,
+              reason: reason,
               system_message: systemMessage,
               user_message: message,
               dan: isDAN,
@@ -118,7 +127,7 @@ function Chat({ isMobile }) {
         );
 
         if (!response.ok) {
-          throw new Error(`서버 응답 오류: ${response.status}`);
+          throw new Error(`서버 오류가 발생했습니다: ${response.status}`);
         }
 
         const reader = response.body.getReader();
@@ -149,7 +158,7 @@ function Chat({ isMobile }) {
                   updateAssistantMessage(assistantText, false);
                 }
               } catch (err) {
-                updateAssistantMessage("데이터 처리 중 오류가 발생했습니다.", true);
+                updateAssistantMessage("데이터 처리 중 오류가 발생했습니다: " + err.message, true);
                 reader.cancel();
                 return;
               }
@@ -162,39 +171,35 @@ function Chat({ isMobile }) {
         if (err.name === 'AbortError') {
           return;
         }
-        updateAssistantMessage("메시지 전송 중 오류 발생: " + err.message, true);
+        updateAssistantMessage("메시지 전송 중 오류가 발생했습니다: " + err.message, true);
       } finally {
         if (thinkingIntervalRef.current) {
           clearInterval(thinkingIntervalRef.current);
           thinkingIntervalRef.current = null;
           setIsThinking(false);
         }
-        setIsLoading(false);
+        setIsLoadingResponse(false);
         abortControllerRef.current = null;
       }
     },
-    [
-      conversation_id,
-      model,
-      models,
-      temperature,
-      systemMessage,
-      updateAssistantMessage,
-      isDAN,
-      isInferenceModel
-    ]
+    [conversation_id, model, models, temperature, reason, systemMessage, updateAssistantMessage, isInference, isDAN]
   );
 
   useEffect(() => {
     const initializeChat = async () => {
       try {
+        setIsLoadingChat(true);
+        setIsInference(false);
+        setIsSearch(false);
+        setIsDAN(false);
+
         const res = await axios.get(
           `${process.env.REACT_APP_FASTAPI_URL}/conversation/${conversation_id}`,
           { withCredentials: true }
         );
         updateModel(res.data.model);
-        updateTemperature(res.data.temperature);
-        updateInstruction(res.data.system_message);
+        setTemperature(res.data.temperature);
+        setSystemMessage(res.data.system_message);
 
         const updatedMessages = res.data.messages.map((m) =>
           m.role === "assistant" ? { ...m, isComplete: true } : m
@@ -205,7 +210,9 @@ function Chat({ isMobile }) {
           sendMessage(location.state.initialMessage);
         }
       } catch (err) {
-        updateAssistantMessage("초기화 중 오류 발생: " + err.message, true);
+        updateAssistantMessage("초기화 중 오류가 발생했습니다: " + err.message, true);
+      } finally {
+        setIsLoadingChat(false);
       }
     };
 
@@ -213,11 +220,24 @@ function Chat({ isMobile }) {
     // eslint-disable-next-line
   }, [conversation_id, location.state]);
 
+  useEffect(() => {
+    if (isFunctionOn) {
+      if (isSearch && isInference) {
+        updateModel("sonar-reasoning");
+      } else if (isSearch) {
+        updateModel("sonar");
+      } else if (isInference) {
+        updateModel("o1");
+      }
+    }
+    // eslint-disable-next-line
+  }, [isSearch, isInference, isFunctionOn]);
+
   const adjustTextareaHeight = useCallback(() => {
     const textarea = textAreaRef.current;
     if (textarea) {
       textarea.style.height = "auto";
-      const newHeight = Math.min(textarea.scrollHeight, 180);
+      const newHeight = Math.min(textarea.scrollHeight, 160);
       textarea.style.height = `${newHeight}px`;
     }
   }, []);
@@ -271,6 +291,12 @@ function Chat({ isMobile }) {
 
   return (
     <div className="container">
+      {isLoadingChat && 
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100dvh', marginBottom: '30px' }}>
+          <ClipLoader loading={true} size={50} />
+        </div>
+      }
+      
       <div className="chat-messages">
         {messages.map((msg, idx) => (
           <Message
@@ -313,15 +339,39 @@ function Chat({ isMobile }) {
             onCompositionEnd={() => setIsComposing(false)}
           />
           <div className="button-area">
-            <div className="add-file button">
+            <div className="function-button">
               <GoPlus style={{ strokeWidth: 0.5 }} />
             </div>
-            <div className="search button">
+            <div 
+              className={`function-button ${isSearch ? "active" : ""}`}
+              onClick={() => {
+                const newSearch = !isSearch;
+                setIsSearch(newSearch);
+                setIsFunctionOn(newSearch || isInference);
+                if (!newSearch && !isInference) {
+                  updateModel("gpt-4o");
+                }
+              }}
+            >
               <GoGlobe style={{ strokeWidth: 0.5 }} />
               검색
             </div>
             <div 
-              className={`dan button ${modelType !== "none" ? isDAN ? "button-active" : "" : "button-disabled"}`}
+              className={`function-button ${isInference ? "active" : ""}`}
+              onClick={() => {
+                const newInference = !isInference;
+                setIsInference(newInference);
+                setIsFunctionOn(isSearch || newInference);
+                if (!isSearch && !newInference) {
+                  updateModel("gpt-4o");
+                }
+              }}
+            >
+              <GoLightBulb style={{ strokeWidth: 0.5 }} />
+              추론
+            </div>
+            <div 
+              className={`function-button ${modelType !== "none" ? isDAN ? "active" : "" : "disabled"}`}
               onClick={() => {
                 if (modelType !== "none") {
                   setIsDAN(!isDAN);
@@ -336,16 +386,16 @@ function Chat({ isMobile }) {
         <button
           className="send-button"
           onClick={() => {
-            if (isLoading) {
+            if (isLoadingResponse) {
               abortControllerRef.current?.abort();
             } else {
               sendMessage(inputText);
             }
           }}
-          disabled={!inputText.trim() && !isLoading}
-          aria-label={isLoading ? "전송 중단" : "메시지 전송"}
+          disabled={!inputText.trim() && !isLoadingResponse}
+          aria-label={isLoadingResponse ? "전송 중단" : "메시지 전송"}
         >
-          {isLoading ? (
+          {isLoadingResponse ? (
             <div className="loading-container">
               <ImSpinner8 className="spinner" />
               <FaStop className="stop-icon" />

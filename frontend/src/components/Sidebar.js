@@ -14,7 +14,7 @@ function Sidebar({
     toggleSidebar,
     isSidebarVisible,
     conversations,
-    loading,
+    isLoadingChat,
     error,
     deleteConversation,
     deleteAllConversation,
@@ -54,7 +54,6 @@ function Sidebar({
             deleteConversation(conversation_id);
             setError(null);
 
-            // 현재 보고 있는 대화라면 메인 화면으로 이동
             const currentPath = location.pathname;
             const currentConversationId = currentPath.startsWith('/chat/')
                 ? currentPath.split('/chat/')[1]
@@ -162,12 +161,9 @@ function Sidebar({
                         새 대화 시작
                     </button>
                 </div>
-
-                <div className={`conversation-container ${loading ? 'loading' : ''}`}>
-                    {loading ? (
+                <div className={`conversation-container ${isLoadingChat ? 'loading' : ''}`}>
+                    {isLoadingChat ? (
                         <ClipLoader loading={true} size={40} />
-                    ) : error ? (
-                        <div style={{ padding: "20px" }}>{error}</div>
                     ) : (
                         <AnimatePresence>
                             {conversations
@@ -249,6 +245,19 @@ function Sidebar({
                         onConfirm={confirmDelete}
                         onCancel={cancelDelete}
                         showCancelButton={true}
+                    />
+                )}
+            </AnimatePresence>
+
+            <AnimatePresence>
+                {error && (
+                    <Modal
+                        message={error}
+                        onConfirm={() => {
+                            setError(null);
+                            window.location.reload();
+                        }}
+                        showCancelButton={false}
                     />
                 )}
             </AnimatePresence>

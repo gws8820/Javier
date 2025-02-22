@@ -2,7 +2,7 @@
 import React, { useState, useContext, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { FaPaperPlane, FaStop } from "react-icons/fa";
-import { GoPlus, GoGlobe, GoUnlock } from "react-icons/go";
+import { GoPlus, GoGlobe, GoLightBulb, GoUnlock } from "react-icons/go";
 import { ImSpinner8 } from "react-icons/im";
 import { SettingsContext } from "../contexts/SettingsContext";
 import { motion } from "framer-motion";
@@ -21,11 +21,19 @@ function Main({ addConversation, isMobile }) {
     model,
     modelType,
     temperature,
+    reason,
     systemMessage,
-    updateTemperature,
-    updateInstruction,
+    updateModel,
+    setTemperature,
+    setSystemMessage,
+    isInference,
+    isSearch,
     isDAN,
-    setIsDAN
+    isFunctionOn,
+    setIsInference,
+    setIsSearch,
+    setIsDAN,
+    setIsFunctionOn
   } = useContext(SettingsContext);
 
   const models = modelsData.models;
@@ -46,6 +54,7 @@ function Main({ addConversation, isMobile }) {
         {
           model: selectedModel.model_name,
           temperature: temperature,
+          reason: reason,
           system_message: systemMessage,
           user_message: message,
         },
@@ -66,7 +75,7 @@ function Main({ addConversation, isMobile }) {
     } finally {
       setIsLoading(false);
     }
-  }, [models, model, temperature, systemMessage, navigate, addConversation]);
+  }, [models, model, temperature, reason, systemMessage, navigate, addConversation]);
 
   const adjustTextareaHeight = useCallback(() => {
     const textarea = textAreaRef.current;
@@ -78,10 +87,27 @@ function Main({ addConversation, isMobile }) {
   }, []);
 
   useEffect(() => {
-    updateTemperature(1);
-    updateInstruction("");
+    setIsInference(false);
+    setIsSearch(false);
+    setIsDAN(false);
+    updateModel("gpt-4o");
+    setTemperature(1);
+    setSystemMessage("");
     // eslint-disable-next-line
   }, []);
+
+  useEffect(() => {
+    if (isFunctionOn) {
+      if (isSearch && isInference) {
+        updateModel("sonar-reasoning");
+      } else if (isSearch) {
+        updateModel("sonar");
+      } else if (isInference) {
+        updateModel("o1");
+      }
+    }
+    // eslint-disable-next-line
+  }, [isSearch, isInference, isFunctionOn]);
 
   useEffect(() => {
     adjustTextareaHeight();
@@ -131,17 +157,47 @@ function Main({ addConversation, isMobile }) {
               onCompositionEnd={() => setIsComposing(false)}
             />
             <div className="button-area">
-              <div className="add-file button"><GoPlus style={{ strokeWidth: 0.5 }} /></div>
-              <div className="search button"><GoGlobe style={{ strokeWidth: 0.5 }} />검색</div>
+              <div className="function-button">
+                <GoPlus style={{ strokeWidth: 0.5 }} />
+              </div>
               <div 
-                className={`dan button ${modelType !== "none" ? isDAN ? "button-active" : "" : "button-disabled"}`}
+                className={`function-button ${isSearch ? "active" : ""}`}
+                onClick={() => {
+                  const newSearch = !isSearch;
+                  setIsSearch(newSearch);
+                  setIsFunctionOn(newSearch || isInference);
+                  if (!newSearch && !isInference) {
+                    updateModel("gpt-4o");
+                  }
+                }}
+              >
+                <GoGlobe style={{ strokeWidth: 0.5 }} />
+                검색
+              </div>
+              <div 
+                className={`function-button ${isInference ? "active" : ""}`}
+                onClick={() => {
+                  const newInference = !isInference;
+                  setIsInference(newInference);
+                  setIsFunctionOn(isSearch || newInference);
+                  if (!isSearch && !newInference) {
+                    updateModel("gpt-4o");
+                  }
+                }}
+              >
+                <GoLightBulb style={{ strokeWidth: 0.5 }} />
+                추론
+              </div>
+              <div 
+                className={`function-button ${modelType !== "none" ? isDAN ? "active" : "" : "disabled"}`}
                 onClick={() => {
                   if (modelType !== "none") {
                     setIsDAN(!isDAN);
                   }
                 }}
               >
-                <GoUnlock style={{ strokeWidth: 0.5 }} />DAN
+                <GoUnlock style={{ strokeWidth: 0.5 }} />
+                DAN
               </div>
             </div>
           </div>

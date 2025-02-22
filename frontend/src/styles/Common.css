@@ -47,7 +47,8 @@
     padding: 10px 10px 0 10px;
     box-sizing: border-box;
     font-family: "Noto Sans KR", sans-serif;
-    font-size: 16px;
+    font-size: 15px;
+    line-height: 1.5;
     border: none;
     resize: none;
     outline: none;
@@ -71,7 +72,7 @@
     font-size: 14px;
 }
 
-.button-area .button {
+.button-area .function-button {
     display: flex;
     align-items: center;
     margin-top: 6px;
@@ -83,16 +84,16 @@
     transition: color 0.2s ease, background-color 0.2s ease;
 }
 
-.button-area .button:hover {
+.button-area .function-button:hover {
     cursor: pointer;
 }
 
-.button-area .button-active {
+.button-area .active {
     color: rgb(2, 133, 255);
     background-color: rgb(238, 248, 255);
 }
 
-.button-disabled {
+.disabled {
     color: rgb(93, 93, 93);
 }
 

@@ -5,20 +5,13 @@ import rehypeSanitize from "rehype-sanitize";
 import PropTypes from "prop-types";
 import { motion } from "framer-motion";
 import remarkGfm from "remark-gfm";
-import {
-  InlineCode,
-  CompletedPre,
-  TempPre,
-  Table,
-  Thead,
-  Tbody,
-  Tr,
-  Th,
-  Td,
-} from "./MarkdownRenderers";
+import { InlineCode, CompletedPre, TempPre, Table, Thead, Tbody, Tr, Th, Td } from "./MarkdownRenderers";
 import "../styles/Message.css";
 
 function Message({ role, content, isComplete }) {
+  if (content.trim() === "\u200B")
+    return null;
+  
   if (role === "assistant") {
     return (
       <div className="chat-message assistant">
