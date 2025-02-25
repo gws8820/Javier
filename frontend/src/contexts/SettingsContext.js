@@ -6,7 +6,7 @@ export const SettingsContext = createContext();
 export const SettingsProvider = ({ children }) => {
   const [model, setModel] = useState("gpt-4o");
   const [modelType, setModelType] = useState("");
-  const [temperature, setTemperature] = useState(1);
+  const [temperature, setTemperature] = useState(0.5);
   const [reason, setReason] = useState(2);
   const [systemMessage, setSystemMessage] = useState("");
   const [isSearch, setIsSearch] = useState(false);
@@ -32,7 +32,11 @@ export const SettingsProvider = ({ children }) => {
     } else if (typeOfModel === "reason") {
       setTemperature(1);
       setReason((prev) => (prev === 0 ? 2 : prev));
+    } else if (typeOfModel === "think") {
+      setTemperature(1);
+      setReason(1);
     } else {
+      setTemperature(0.5);
       setReason(0);
     }
   };

@@ -2,7 +2,6 @@
 import axios from "axios";
 import { useEffect, useState } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from "react-router-dom";
-
 import { motion, AnimatePresence } from "framer-motion";
 
 import Sidebar from "./components/Sidebar";
@@ -12,7 +11,6 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Header from "./components/Header";
 import { SettingsProvider } from "./contexts/SettingsContext";
-
 import "./styles/Common.css";
 
 function App() {
@@ -93,21 +91,23 @@ function App() {
   };
 
   return (
-    <Router>
-      <AppLayout
-        isLoggedIn={isLoggedIn}
-        isSidebarVisible={isSidebarVisible}
-        toggleSidebar={toggleSidebar}
-        conversations={conversations}
-        isLoadingChat={isLoadingChat}
-        error={error}
-        deleteConversation={deleteConversation}
-        deleteAllConversation={deleteAllConversation}
-        fetchConversations={fetchConversations}
-        addConversation={addConversation}
-        setError={setError}
-      />
-    </Router>
+    isLoggedIn !== null ? (
+      <Router>
+        <AppLayout
+          isLoggedIn={isLoggedIn}
+          isSidebarVisible={isSidebarVisible}
+          toggleSidebar={toggleSidebar}
+          conversations={conversations}
+          isLoadingChat={isLoadingChat}
+          error={error}
+          deleteConversation={deleteConversation}
+          deleteAllConversation={deleteAllConversation}
+          fetchConversations={fetchConversations}
+          addConversation={addConversation}
+          setError={setError}
+        />
+      </Router>
+    ) : null
   );
 }
 

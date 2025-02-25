@@ -10,7 +10,6 @@ from .auth import User, get_current_user
 from .openai_client import get_alias
 
 load_dotenv()
-
 router = APIRouter()
 
 # MongoDB 설정
@@ -48,7 +47,6 @@ async def get_conversations(current_user: User = Depends(get_current_user)):
         }
         for doc in docs
     ]
-
     return {"conversations": conversations}
 
 @router.get("/conversation/{conversation_id}", response_model=dict)
@@ -93,18 +91,31 @@ async def create_new_conversation(request_data: NewConversationRequest, current_
         "conversation_id": conversation_id
     }
 
-@router.delete("/conversation/all", response_model=dict)
-async def delete_all_conversation(current_user: User = Depends(get_current_user)):
+@router.delete("/conversation/{conversation_id}/{startIndex}", response_model=dict)
+async def delete_messages_from_index(
+    conversation_id: str,
+    startIndex: int,
+    current_user: User = Depends(get_current_user)
+):
     user_id = current_user.user_id
-    result = conversations_collection.delete_many({
-        "user_id": user_id,
-    })
-
-    if result.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="Conversation not found or already deleted")
-
+    doc = conversations_collection.find_one({"user_id": user_id, "conversation_id": conversation_id})
+    
+    if doc is None:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    
+    messages = doc.get("conversation", [])
+    if startIndex < 0 or startIndex >= len(messages):
+        raise HTTPException(status_code=400, detail="startIndex is out of range")
+    
+    new_messages = messages[:startIndex]
+    conversations_collection.update_one(
+        {"_id": doc["_id"]},
+        {"$set": {"conversation": new_messages}}
+    )
+    
     return {
-        "message": "Conversations deleted successfully"
+        "message": "Conversation truncated successfully.",
+        "conversation_id": conversation_id
     }
 
 @router.delete("/conversation/{conversation_id}", response_model=dict)
@@ -121,4 +132,18 @@ async def delete_conversation(conversation_id: str, current_user: User = Depends
     return {
         "message": "Conversation deleted successfully",
         "conversation_id": conversation_id
+    }
+
+@router.delete("/conversation/all", response_model=dict)
+async def delete_all_conversation(current_user: User = Depends(get_current_user)):
+    user_id = current_user.user_id
+    result = conversations_collection.delete_many({
+        "user_id": user_id,
+    })
+
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Conversation not found or already deleted")
+
+    return {
+        "message": "Conversations deleted successfully"
     }

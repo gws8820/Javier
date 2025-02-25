@@ -91,7 +91,7 @@ function Main({ addConversation, isMobile }) {
     setIsSearch(false);
     setIsDAN(false);
     updateModel("gpt-4o");
-    setTemperature(1);
+    setTemperature(0.5);
     setSystemMessage("");
     // eslint-disable-next-line
   }, []);

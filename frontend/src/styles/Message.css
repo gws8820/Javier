@@ -14,7 +14,7 @@
 }
 
 .chat-message {
-  margin: 10px 14px;
+  margin: 7px 14px;
   font-size: 15px;
   line-height: 1.5;
   display: flex;
@@ -22,13 +22,47 @@
   word-break: break-all;
 }
 
-.chat-message.user {
+.user-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
   max-width: 70%;
-  padding: 10px 20px;
   margin-left: auto;
+}
+
+.user-wrap:hover .message-function {
+  opacity: 1;
+}
+
+.assistant-wrap:hover .message-function {
+  opacity: 1;
+}
+
+.chat-message.user {
+  padding: 10px 20px;
   background-color: rgba(232, 232, 232, 0.5);
   border-radius: 24px;
   white-space: pre-wrap;
+}
+
+.message-function {
+  display: flex;
+  margin: 0 14px;
+  font-size: 14px;
+  gap: 10px;
+  color: #aaaaaa;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.function-button {
+  stroke-width: 0.5;
+  transition: color 0.2s;
+}
+
+.function-button:hover {
+  color: #333;
+  cursor: pointer;
 }
 
 .chat-message.assistant {
@@ -36,15 +70,18 @@
   text-align: left;
 }
 
-.chat-message.think {
-  padding: 10px 0;
-  flex-shrink: 0;
-  justify-content: center;
-  color: rgb(100, 100, 100);
+.chat-message.error {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
 }
 
 .chat-message p {
   margin: 10px 0;
+}
+
+.chat-message p:empty {
+  margin: 5px 0;
 }
 
 .chat-message h1, h2, h3, h4 {
@@ -61,6 +98,15 @@
   padding: 4px;
 }
 
+.chat-message .katex {
+  position: relative;
+}
+
+.think-block {
+  font-size: 14px;
+  color: rgb(100, 100, 100);
+}
+
 /* 코드 블록 스타일링 */
 .code-block {
   position: relative;
@@ -68,7 +114,6 @@
   margin: 15px 0;
   border-radius: 6px;
   font-size: 13px;
-  background-color: rgb(235, 235, 235);
 }
 
 .inline-code{
@@ -79,19 +124,27 @@ code {
   background-color: transparent !important;
 }
 
+.code-header-wrap {
+  position: sticky;
+  top: 0;
+  background-color: white;
+}
+
 .code-header {
   display: flex;
   flex-direction: row;
   justify-content: space-between;
   padding: 10px 18px;
+  border-radius: 6px 6px 0 0;
+  background-color: rgb(235, 235, 235);
 }
 
 .markdown-table {
+  display: block;
   width: 100%;
   border-collapse: collapse;
   margin: 15px 0;
   overflow-x: auto;
-  display: block;
 }
 
 .markdown-thead {

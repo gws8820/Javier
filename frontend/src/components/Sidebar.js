@@ -4,10 +4,11 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { FaUserCircle } from "react-icons/fa";
 import { LiaTimesSolid } from "react-icons/lia";
 import { BsLayoutTextSidebar } from "react-icons/bs";
+import { ClipLoader } from "react-spinners";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
-import { ClipLoader } from "react-spinners";
-import Modal from "../components/Modal";
+import Modal from "./Modal";
+import Tooltip from "./Tooltip";
 import "../styles/Sidebar.css";
 
 function Sidebar({
@@ -144,13 +145,14 @@ function Sidebar({
             <div className={`sidebar ${isResponsive && isSidebarVisible ? "visible" : ""}`}>
                 <div className="header">
                     <div className="Logo">Javier</div>
-                    <div className="header-icon toggle-icon">
+                    <Tooltip content="사이드바 닫기" position="bottom">
+                        <div className="header-icon toggle-icon">
                         <BsLayoutTextSidebar
                             onClick={toggleSidebar}
-                            title="사이드바 닫기"
                             style={{ strokeWidth: 0.3 }}
                         />
-                    </div>
+                        </div>
+                    </Tooltip>
                 </div>
 
                 <div className="newconv-container">

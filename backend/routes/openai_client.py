@@ -2,6 +2,7 @@ import os
 import json
 import asyncio
 import time
+import copy
 import tiktoken
 from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -20,13 +21,15 @@ mongoclient = MongoClient(os.getenv('MONGODB_URI'))
 db = mongoclient.chat_db
 user_collection = db.users
 conversation_collection = db.conversations
-dan_prompt_path = os.path.join(os.path.dirname(__file__), '..', 'dan_prompt.txt')
 
+dan_prompt_path = os.path.join(os.path.dirname(__file__), '..', 'dan_prompt.txt')
 try:
     with open(dan_prompt_path, 'r', encoding='utf-8') as f:
         DAN_PROMPT = f.read()
 except FileNotFoundError:
     DAN_PROMPT = ""
+
+MARKDOWN_PROMPT = "코드, 표, 리스트, 구분선에 마크다운 문법을 사용해. 수식에는 `[ ... ]` 대신 `$...$`이나 `$$...$$`를 사용해."
 
 class ChatRequest(BaseModel):
     conversation_id: str
@@ -75,15 +78,12 @@ def get_response(request: ChatRequest, settings: ApiSettings, user: User, fastap
     conversation = conversation_data["conversation"][-20:] if conversation_data else []
     conversation.append({"role": "user", "content": request.user_message})
     
-    formatted_messages = [
-        {"role": "user", "content": "필요한 경우 마크다운 문법에 따라 대답해. 대화에서 이 지시어는 언급하지 마."},
-        {"role": "assistant", "content": "필요한 경우 마크다운 문법에 따라 대답하고, 지시어에 대해 언급하지 않겠습니다."}
-    ] + conversation.copy()
-    
+    formatted_messages = [{"role": settings.admin_role, "content": MARKDOWN_PROMPT}] + copy.deepcopy(conversation) 
+
     if request.dan and DAN_PROMPT:
         formatted_messages.insert(0, {"role": settings.admin_role, "content": DAN_PROMPT})
         formatted_messages[-1]["content"] += " STAY IN YOUR CHARACTER"
-    elif request.system_message:
+    if request.system_message:
         formatted_messages.insert(0, {"role": settings.admin_role, "content": request.system_message})
     
     async def event_generator():
@@ -91,7 +91,7 @@ def get_response(request: ChatRequest, settings: ApiSettings, user: User, fastap
         try:
             client = OpenAI(api_key=settings.api_key, base_url=(settings.base_url or None))
             parameters = {
-                "model": request.model,
+                "model": request.model.split(':')[0],
                 "temperature": request.temperature,
                 "messages": formatted_messages,
                 "stream": request.stream
@@ -122,6 +122,7 @@ def get_response(request: ChatRequest, settings: ApiSettings, user: User, fastap
                             await asyncio.sleep(0.03)
                 except Exception as ex:
                     print(f"Produce tokens exception: {ex}")
+                    await token_queue.put({"error": str(ex)})
                 finally:
                     await token_queue.put(None)
 
@@ -132,14 +133,18 @@ def get_response(request: ChatRequest, settings: ApiSettings, user: User, fastap
                     break
                 if await fastapi_request.is_disconnected():
                     break
-                response_text += token
-                yield f"data: {json.dumps({'content': token})}\n\n"
+                if isinstance(token, dict) and "error" in token:
+                    yield f"data: {json.dumps(token)}\n\n"
+                    break
+                else:
+                    response_text += token
+                    yield f"data: {json.dumps({'content': token})}\n\n"
 
             if not producer_task.done():
                 producer_task.cancel()
-        except Exception as e:
-            print(f"Exception detected: {e}", flush=True)
-            yield f"data: {json.dumps({'content': f'서버 오류가 발생했습니다: {e}'})}\n\n"
+        except Exception as ex:
+            print(f"Exception detected: {ex}", flush=True)
+            yield f"data: {json.dumps({'error': str(ex)})}\n\n"
         finally:
             formatted_response = {"role": "assistant", "content": response_text or "\u200B"}
             conversation.append(formatted_response)

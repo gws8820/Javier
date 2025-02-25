@@ -6,10 +6,11 @@ import { GoPlus, GoGlobe, GoLightBulb, GoUnlock } from "react-icons/go";
 import { ImSpinner8 } from "react-icons/im";
 import { ClipLoader } from 'react-spinners';
 import { SettingsContext } from "../contexts/SettingsContext";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 import modelsData from '../models.json';
 import Message from "../components/Message";
+import Modal from "../components/Modal";
 import "../styles/Common.css";
 
 function Chat({ isMobile }) {
@@ -26,6 +27,8 @@ function Chat({ isMobile }) {
   const [thinkingText, setThinkingText] = useState("");
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [scrollOnSend, setScrollOnSend] = useState(false);
+  const [deleteMessageIndex, setDeleteMessageIndex] = useState(null);
+  const [showModal, setShowModal] = useState(false);
 
   const textAreaRef = useRef(null);
   const messagesEndRef = useRef(null);
@@ -53,7 +56,7 @@ function Chat({ isMobile }) {
 
   const models = modelsData.models;
 
-  const updateAssistantMessage = useCallback((text, isComplete = false) => {
+  const updateAssistantMessage = useCallback((message, isComplete = false) => {
     if (thinkingIntervalRef.current) {
       clearInterval(thinkingIntervalRef.current);
       thinkingIntervalRef.current = null;
@@ -65,14 +68,65 @@ function Chat({ isMobile }) {
       if (lastMsg && lastMsg.role === "assistant") {
         return prev.map((msg, i) =>
           i === prev.length - 1
-            ? { ...msg, content: text, isComplete }
+            ? { ...msg, content: message, isComplete }
             : msg
         );
       } else {
-        return [...prev, { role: "assistant", content: text, isComplete }];
+        return [...prev, { role: "assistant", content: message, isComplete }];
       }
     });
   }, []);
+
+  const setErrorMessage = useCallback((message) => {
+    setMessages(prev => [...prev, { role: "error", content: message }]);
+  }, []);
+
+  useEffect(() => {
+    const initializeChat = async () => {
+      try {
+        setIsLoadingChat(true);
+        setIsInference(false);
+        setIsSearch(false);
+
+        const res = await axios.get(
+          `${process.env.REACT_APP_FASTAPI_URL}/conversation/${conversation_id}`,
+          { withCredentials: true }
+        );
+        updateModel(res.data.model);
+        setTemperature(res.data.temperature);
+        setSystemMessage(res.data.system_message);
+
+        const updatedMessages = res.data.messages.map((m) =>
+          m.role === "assistant" ? { ...m, isComplete: true } : m
+        );
+        setMessages(updatedMessages);
+
+        if (location.state?.initialMessage && updatedMessages.length === 0) {
+          sendMessage(location.state.initialMessage);
+        }
+      } catch (err) {
+        setErrorMessage("초기화 중 오류가 발생했습니다: " + err.message);
+      } finally {
+        setIsLoadingChat(false);
+      }
+    };
+
+    initializeChat();
+    // eslint-disable-next-line
+  }, [conversation_id, location.state]);
+
+  useEffect(() => {
+    if (isFunctionOn) {
+      if (isSearch && isInference) {
+        updateModel("sonar-reasoning");
+      } else if (isSearch) {
+        updateModel("sonar");
+      } else if (isInference) {
+        updateModel("o1");
+      }
+    }
+    // eslint-disable-next-line
+  }, [isSearch, isInference, isFunctionOn]);
 
   const sendMessage = useCallback(
     async (message) => {
@@ -150,7 +204,7 @@ function Chat({ isMobile }) {
               try {
                 const data = JSON.parse(jsonData);
                 if (data.error) {
-                  updateAssistantMessage(data.error, true);
+                  setErrorMessage("서버 오류가 발생했습니다: " + data.error);
                   reader.cancel();
                   return;
                 } else if (data.content) {
@@ -158,7 +212,7 @@ function Chat({ isMobile }) {
                   updateAssistantMessage(assistantText, false);
                 }
               } catch (err) {
-                updateAssistantMessage("데이터 처리 중 오류가 발생했습니다: " + err.message, true);
+                setErrorMessage("데이터 처리 중 오류가 발생했습니다: " + err.message);
                 reader.cancel();
                 return;
               }
@@ -171,7 +225,7 @@ function Chat({ isMobile }) {
         if (err.name === 'AbortError') {
           return;
         }
-        updateAssistantMessage("메시지 전송 중 오류가 발생했습니다: " + err.message, true);
+        setErrorMessage("메시지 전송 중 오류가 발생했습니다: " + err.message);
       } finally {
         if (thinkingIntervalRef.current) {
           clearInterval(thinkingIntervalRef.current);
@@ -182,69 +236,30 @@ function Chat({ isMobile }) {
         abortControllerRef.current = null;
       }
     },
-    [conversation_id, model, models, temperature, reason, systemMessage, updateAssistantMessage, isInference, isDAN]
+    [conversation_id, model, models, temperature, reason, systemMessage, updateAssistantMessage, setErrorMessage, isInference, isDAN]
   );
 
-  useEffect(() => {
-    const initializeChat = async () => {
-      try {
-        setIsLoadingChat(true);
-        setIsInference(false);
-        setIsSearch(false);
-        setIsDAN(false);
-
-        const res = await axios.get(
-          `${process.env.REACT_APP_FASTAPI_URL}/conversation/${conversation_id}`,
-          { withCredentials: true }
-        );
-        updateModel(res.data.model);
-        setTemperature(res.data.temperature);
-        setSystemMessage(res.data.system_message);
-
-        const updatedMessages = res.data.messages.map((m) =>
-          m.role === "assistant" ? { ...m, isComplete: true } : m
-        );
-        setMessages(updatedMessages);
-
-        if (location.state?.initialMessage && updatedMessages.length === 0) {
-          sendMessage(location.state.initialMessage);
-        }
-      } catch (err) {
-        updateAssistantMessage("초기화 중 오류가 발생했습니다: " + err.message, true);
-      } finally {
-        setIsLoadingChat(false);
-      }
-    };
-
-    initializeChat();
-    // eslint-disable-next-line
-  }, [conversation_id, location.state]);
-
-  useEffect(() => {
-    if (isFunctionOn) {
-      if (isSearch && isInference) {
-        updateModel("sonar-reasoning");
-      } else if (isSearch) {
-        updateModel("sonar");
-      } else if (isInference) {
-        updateModel("o1");
-      }
+  const deleteMessages = useCallback(async (startIndex) => {
+    try {
+      await axios.delete(
+        `${process.env.REACT_APP_FASTAPI_URL}/conversation/${conversation_id}/${startIndex}`,
+        { withCredentials: true }
+      );
+      setMessages((prevMessages) => prevMessages.slice(0, startIndex));
+    } catch (err) {
+      setErrorMessage("메세지 삭제 중 오류가 발생했습니다: " + err.message);
     }
-    // eslint-disable-next-line
-  }, [isSearch, isInference, isFunctionOn]);
+  }, [conversation_id, setErrorMessage]); 
 
-  const adjustTextareaHeight = useCallback(() => {
-    const textarea = textAreaRef.current;
-    if (textarea) {
-      textarea.style.height = "auto";
-      const newHeight = Math.min(textarea.scrollHeight, 160);
-      textarea.style.height = `${newHeight}px`;
+  const regenerateMessage = useCallback(async (startIndex) => {
+    try {
+      const userMessage = messages[startIndex - 1]?.content || "";
+      await deleteMessages(startIndex - 1);
+      sendMessage(userMessage);
+    } catch (err) {
+      setErrorMessage("메세지 재생성 중 오류가 발생했습니다: " + err.message);
     }
-  }, []);
-
-  useEffect(() => {
-    adjustTextareaHeight();
-  }, [inputText, adjustTextareaHeight]);
+  }, [deleteMessages, messages, sendMessage, setErrorMessage]); 
 
   useEffect(() => {
     const chatContainer = messagesEndRef.current?.parentElement;
@@ -266,14 +281,6 @@ function Chat({ isMobile }) {
   }, []);
 
   useEffect(() => {
-    if (isAtBottom) {
-      requestAnimationFrame(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
-      });
-    }
-  }, [messages, isAtBottom]);
-
-  useEffect(() => {
     if (scrollOnSend) {
       requestAnimationFrame(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -282,12 +289,33 @@ function Chat({ isMobile }) {
     }
   }, [messages, scrollOnSend]);
 
+  useEffect(() => {
+    if (isAtBottom) {
+      requestAnimationFrame(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
+      });
+    }
+  }, [messages, isAtBottom]);
+
   const handleKeyDown = (event) => {
     if (event.key === 'Enter' && !event.shiftKey && !isComposing && !isMobile) {
       event.preventDefault();
       sendMessage(inputText);
     }
   };
+    
+  const adjustTextareaHeight = useCallback(() => {
+    const textarea = textAreaRef.current;
+    if (textarea) {
+      textarea.style.height = "auto";
+      const newHeight = Math.min(textarea.scrollHeight, 160);
+      textarea.style.height = `${newHeight}px`;
+    }
+  }, []);
+
+  useEffect(() => {
+    adjustTextareaHeight();
+  }, [inputText, adjustTextareaHeight]);
 
   return (
     <div className="container">
@@ -298,14 +326,41 @@ function Chat({ isMobile }) {
       }
       
       <div className="chat-messages">
-        {messages.map((msg, idx) => (
-          <Message
-            key={idx}
-            role={msg.role}
-            content={msg.content}
-            isComplete={msg.isComplete}
-          />
-        ))}
+        <AnimatePresence>
+          {messages.map((msg, idx) => (
+            <Message
+              key={idx}
+              messageIndex={idx}
+              role={msg.role}
+              content={msg.content}
+              isComplete={msg.isComplete}
+              onDelete={() => {
+                setDeleteMessageIndex(idx);
+                setShowModal(true);
+              }}
+              onRegenerate={() => regenerateMessage(idx)}
+            />
+          ))}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {showModal && (
+            <Modal
+              message="정말 메세지를 삭제하시겠습니까?"
+              onConfirm={() => {
+                deleteMessages(deleteMessageIndex);
+                setDeleteMessageIndex(null);
+                setShowModal(false);
+              }}
+              onCancel={() => {
+                setDeleteMessageIndex(null);
+                setShowModal(false);
+              }}
+              showCancelButton={true}
+            />
+          )}
+        </AnimatePresence>
+
         {isThinking && (
           <motion.div
             className="chat-message think"

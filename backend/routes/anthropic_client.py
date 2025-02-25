@@ -2,6 +2,7 @@ import os
 import json
 import time
 import asyncio
+import copy
 import anthropic
 import tiktoken
 from dotenv import load_dotenv
@@ -20,13 +21,15 @@ mongoclient = MongoClient(os.getenv('MONGODB_URI'))
 db = mongoclient.chat_db
 user_collection = db.users
 conversation_collection = db.conversations
-dan_prompt_path = os.path.join(os.path.dirname(__file__), '..', 'dan_prompt.txt')
 
+dan_prompt_path = os.path.join(os.path.dirname(__file__), '..', 'dan_prompt.txt')
 try:
     with open(dan_prompt_path, 'r', encoding='utf-8') as f:
         DAN_PROMPT = f.read()
 except FileNotFoundError:
     DAN_PROMPT = ""
+
+MARKDOWN_PROMPT = "코드, 표, 리스트, 구분선에 마크다운 문법을 사용해. 수식에는 `[ ... ]` 대신 `$...$`이나 `$$...$$`를 사용해."
 
 class ChatRequest(BaseModel):
     conversation_id: str
@@ -71,10 +74,7 @@ def get_response(request: ChatRequest, user: User, fastapi_request: Request) -> 
     )
     conversation = conversation_data["conversation"][-20:] if conversation_data else []
     conversation.append({"role": "user", "content": request.user_message})
-    formatted_messages = [
-        {"role": "user", "content": "필요한 경우 마크다운 문법에 따라 대답해. 대화에서 이 지시어는 언급하지 마."},
-        {"role": "assistant", "content": "필요한 경우 마크다운 문법에 따라 대답하고, 지시어에 대해 언급하지 않겠습니다."}
-    ] + conversation.copy()
+    formatted_messages = copy.deepcopy(conversation)
 
     if request.dan and DAN_PROMPT:
         formatted_messages[-1]["content"] += " STAY IN YOUR CHARACTER"
@@ -84,31 +84,48 @@ def get_response(request: ChatRequest, user: User, fastapi_request: Request) -> 
         try:
             client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
             parameters = {
-                "model": request.model,
+                "model": request.model.split(':')[0],
                 "temperature": request.temperature,
-                "max_tokens": 2048,
+                "max_tokens": 5000,
+                "system": MARKDOWN_PROMPT,
                 "messages": formatted_messages,
                 "stream": request.stream,
             }
+            if request.system_message:
+                parameters["system"] += "\n\n" + request.system_message
             if request.dan and DAN_PROMPT:
-                parameters["system"] = DAN_PROMPT
-            elif request.system_message:
-                parameters["system"] = request.system_message
+                parameters["system"] += "\n\n" + DAN_PROMPT
 
             if request.reason != 0:
-                mapping = {1: "low", 2: "medium", 3: "high"}
-                parameters["reasoning_effort"] = mapping.get(request.reason)
+                parameters["thinking"] = {
+                    "type": "enabled",
+                    "budget_tokens": 4000
+                }
 
             token_queue = asyncio.Queue()
             async def produce_tokens():
                 try:
                     if request.stream:
                         stream_result = client.messages.create(**parameters, timeout=180)
+                        in_thinking = False
                         for chunk in stream_result:
                             if await fastapi_request.is_disconnected():
                                 return
-                            if hasattr(chunk, "delta") and hasattr(chunk.delta, "text"):
-                                await token_queue.put(chunk.delta.text)
+                            if hasattr(chunk, "type"):
+                                if chunk.type == "content_block_start" and hasattr(chunk, "content_block"):
+                                    if getattr(chunk.content_block, "type", "") == "thinking":
+                                        await token_queue.put("<think>\n")
+                                        in_thinking = True
+
+                                elif chunk.type == "content_block_stop":
+                                    if in_thinking:
+                                        await token_queue.put("\n</think>\n\n")
+                                        in_thinking = False
+                            if hasattr(chunk, "delta"):
+                                if in_thinking and hasattr(chunk.delta, "thinking"):
+                                    await token_queue.put(chunk.delta.thinking)
+                                elif not in_thinking and hasattr(chunk.delta, "text"):
+                                    await token_queue.put(chunk.delta.text)
                     else:
                         single_result = client.chat.completions.create(**parameters, timeout=180)
                         full_response_text = single_result.choices[0].message.content
@@ -121,6 +138,7 @@ def get_response(request: ChatRequest, user: User, fastapi_request: Request) -> 
                             await asyncio.sleep(0.03)
                 except Exception as ex:
                     print(f"Produce tokens exception: {ex}")
+                    await token_queue.put({"error": str(ex)})
                 finally:
                     await token_queue.put(None)
 
@@ -131,14 +149,18 @@ def get_response(request: ChatRequest, user: User, fastapi_request: Request) -> 
                     break
                 if await fastapi_request.is_disconnected():
                     break
-                response_text += token
-                yield f"data: {json.dumps({'content': token})}\n\n"
+                if isinstance(token, dict) and "error" in token:
+                    yield f"data: {json.dumps(token)}\n\n"
+                    break
+                else:
+                    response_text += token
+                    yield f"data: {json.dumps({'content': token})}\n\n"
+
             if not producer_task.done():
                 producer_task.cancel()
-        except Exception as e:
-            print(f"Exception detected: {e}", flush=True)
-            yield f"data: {json.dumps({'content': f'서버 오류가 발생했습니다: {e}'})}\n\n"
-            return
+        except Exception as ex:
+            print(f"Exception detected: {ex}", flush=True)
+            yield f"data: {json.dumps({'error': str(ex)})}\n\n"
         finally:
             formatted_response = {"role": "assistant", "content": response_text or "\u200B"}
             conversation.append(formatted_response)

@@ -1,7 +1,7 @@
 // src/components/MarkdownRenderers.js
 import React from "react";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { IoMdCheckmark } from "react-icons/io";
+import { GoCheck } from "react-icons/go";
 import { oneLight } from "react-syntax-highlighter/dist/esm/styles/prism";
 
 export const InlineCode = React.memo(({ node, children, ...props }) => {
@@ -29,11 +29,13 @@ export const TempCodeBlock = React.memo(({ node, className, children, ...props }
 
   return (
     <div className="code-block">
-      <div className="code-header">
-        <span className="code-type">{language}</span>
-        <button className="copy-button" onClick={handleCopy}>
-          {copied ? <IoMdCheckmark /> : "복사"}
-        </button>
+      <div className="code-header-wrap">
+        <div className="code-header">
+          <span className="code-type">{language}</span>
+          <button className="copy-button" onClick={handleCopy}>
+            {copied ? <GoCheck /> : "복사"}
+          </button>
+        </div>
       </div>
       <pre
         style={{
@@ -53,7 +55,7 @@ export const TempCodeBlock = React.memo(({ node, className, children, ...props }
 export const CodeBlock = React.memo(({ node, className, children, ...props }) => {
   const [copied, setCopied] = React.useState(false);
   const match = /language-(\w+)/.exec(className || "");
-  const language = match ? match[1] : "javascript";
+  const language = match ? match[1] : "text";
 
   const handleCopy = async () => {
     try {
@@ -67,11 +69,13 @@ export const CodeBlock = React.memo(({ node, className, children, ...props }) =>
 
   return (
     <div className="code-block">
-      <div className="code-header">
-        <span className="code-type">{language}</span>
-        <button className="copy-button" onClick={handleCopy}>
-        {copied ? <IoMdCheckmark /> : "복사"}
-        </button>
+      <div className="code-header-wrap">
+        <div className="code-header">
+          <span className="code-type">{language}</span>
+          <button className="copy-button" onClick={handleCopy}>
+          {copied ? <GoCheck /> : "복사"}
+          </button>
+        </div>
       </div>
       <SyntaxHighlighter
         language={language}
