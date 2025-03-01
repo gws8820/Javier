@@ -23,6 +23,7 @@ function Header({ toggleSidebar, isSidebarVisible }) {
     setTemperature,
     setReason,
     setSystemMessage,
+    isImage,
     isInference,
     isSearch,
     isFunctionOn,
@@ -39,16 +40,14 @@ function Header({ toggleSidebar, isSidebarVisible }) {
   const reasonSliderRef = useRef(null);
   const systemMessageRef = useRef(null);
 
-  let modelsList;
-  if (isFunctionOn) {
-    modelsList = models.filter((m) => {
+  let modelsList = models.filter((m) => {
+    if (isFunctionOn) {
       if (isSearch && !m.capabilities?.search) return false;
       if (isInference && !m.inference) return false;
-      return true;
-    });
-  } else {
-    modelsList = models;
-  }
+    }
+    if (isImage && !m.capabilities?.image) return false;
+    return true;
+  });
 
   const currentModelAlias =
     models.find((m) => m.model_name === model)?.model_alias || "모델 선택";

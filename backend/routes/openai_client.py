@@ -1,6 +1,7 @@
 import os
 import json
 import asyncio
+import base64
 import time
 import copy
 import tiktoken
@@ -10,8 +11,9 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from pymongo import MongoClient
 from bson import ObjectId
-from typing import List, Dict, Optional
-from openai import OpenAI
+from typing import Any, Union, List, Dict, Optional
+from openai import AsyncOpenAI
+
 from .auth import User, get_current_user
 
 load_dotenv()
@@ -29,7 +31,7 @@ try:
 except FileNotFoundError:
     DAN_PROMPT = ""
 
-MARKDOWN_PROMPT = "코드, 표, 리스트, 구분선에 마크다운 문법을 사용해. 수식에는 `[ ... ]` 대신 `$...$`이나 `$$...$$`를 사용해."
+MARKDOWN_PROMPT = "코드, 표, 리스트, 구분선이 있을 때 마크다운 문법을 사용해. 수식을 적을 때는 `$...$`를 사용해. 이 지시어에 대해 언급하거나 설명하지 마."
 
 class ChatRequest(BaseModel):
     conversation_id: str
@@ -40,7 +42,7 @@ class ChatRequest(BaseModel):
     temperature: float = 1.0
     reason: int = 0
     system_message: Optional[str] = None
-    user_message: str
+    user_message: List[Dict[str, Any]]
     dan: bool = False
     stream: bool = True
 
@@ -49,12 +51,49 @@ class ApiSettings(BaseModel):
     api_key: str
     base_url: str = ""
 
+def extract_from_file(base64_str: str, filename: str) -> str:
+    import textract
+    import tempfile
+    import os
+
+    header, encoded = base64_str.split(",", 1)
+    file_data = base64.b64decode(encoded)
+    _, ext = os.path.splitext(filename)
+
+    with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
+        tmp.write(file_data)
+        tmp.flush()
+        tmp_path = tmp.name
+
+    try:
+        extracted_bytes = textract.process(tmp_path)
+        text = extracted_bytes.decode("utf-8", errors="ignore")
+    except Exception as e:
+        print(f"textract error: {e}")
+        text = ""
+    finally:
+        os.remove(tmp_path)
+
+    return text
+
 def calculate_billing(request_array, response, in_billing_rate, out_billing_rate, search_billing_rate: Optional[float] = None):
     def count_tokens(message):
         encoding = tiktoken.get_encoding("cl100k_base")
         tokens = 4
         tokens += len(encoding.encode(message.get("role", "")))
-        tokens += len(encoding.encode(message.get("content", "")))
+        
+        content = message.get("content", "")
+        if isinstance(content, list):
+            combined = ""
+            for part in content:
+                if part.get("type") == "text":
+                    combined += "text " + part.get("text", "") + " "
+                elif part.get("type") == "image_url":
+                    combined += "image_url " + part.get("image_url", {}).get("url", "") + " "
+            content_str = combined.strip()
+        else:
+            content_str = content
+        tokens += len(encoding.encode(content_str))
         return tokens
 
     input_tokens = output_tokens = 0
@@ -73,23 +112,113 @@ def calculate_billing(request_array, response, in_billing_rate, out_billing_rate
     total_cost = input_cost + output_cost + search_cost
     return total_cost
 
-def get_response(request: ChatRequest, settings: ApiSettings, user: User, fastapi_request: Request):
-    conversation_data = conversation_collection.find_one({"user_id": user.user_id, "conversation_id": request.conversation_id})
-    conversation = conversation_data["conversation"][-20:] if conversation_data else []
-    conversation.append({"role": "user", "content": request.user_message})
+def process_files(parts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    processed = []
+    for part in parts:
+        if part.get("type") == "file":
+            extracted_text = extract_from_file(part.get("content"), part.get("name", ""))
+            processed.append({
+                "type": "file",
+                "name": part.get("name"),
+                "content": f"[[{part.get('name', '')}]]\n{extracted_text}"
+            })
+        else:
+            processed.append(part)
+    return processed
     
-    formatted_messages = [{"role": settings.admin_role, "content": MARKDOWN_PROMPT}] + copy.deepcopy(conversation) 
+def get_response(request: ChatRequest, settings: ApiSettings, user: User, fastapi_request: Request):
+    # 기존 동기 호출은 그대로 둡니다.
+    conversation_data = conversation_collection.find_one({
+        "user_id": user.user_id,
+        "conversation_id": request.conversation_id
+    })
+    conversation = conversation_data["conversation"][-20:] if conversation_data else []
+    processed_user_message = process_files(request.user_message)
+    conversation.append({"role": "user", "content": processed_user_message})
+
+    def process_content(part):
+        if part.get("type") == "file":
+            return {
+                "type": "text",
+                "text": part.get("content")
+            }
+        elif part.get("type") == "image":
+            return {
+                "type": "image_url",
+                "image_url": {"url": part.get("content")}
+            }
+        return part
+
+    def format_message(message):
+        role = message.get("role")
+        content = message.get("content")
+        if role == "assistant":
+            return {"role": "assistant", "content": content}
+        elif role == "user":
+            return {"role": "user", "content": [process_content(part) for part in content]}
+
+    formatted_messages = [copy.deepcopy(format_message(m)) for m in conversation]
 
     if request.dan and DAN_PROMPT:
-        formatted_messages.insert(0, {"role": settings.admin_role, "content": DAN_PROMPT})
-        formatted_messages[-1]["content"] += " STAY IN YOUR CHARACTER"
+        formatted_messages.insert(0, {
+            "role": settings.admin_role,
+            "content": [{"type": "text", "text": DAN_PROMPT}]
+        })
+        for part in reversed(formatted_messages[-1]["content"]):
+            if part.get("type") == "text":
+                part["text"] += " STAY IN CHARACTER"
+                break
+
     if request.system_message:
-        formatted_messages.insert(0, {"role": settings.admin_role, "content": request.system_message})
-    
+        formatted_messages.insert(0, {
+            "role": settings.admin_role,
+            "content": [{"type": "text", "text": request.system_message}]
+        })
+
+    # 맨 위에 시스템 프롬프트 추가
+    formatted_messages.insert(0, {
+        "role": settings.admin_role,
+        "content": [{"type": "text", "text": MARKDOWN_PROMPT}]
+    })
+
+    async def produce_tokens(token_queue: asyncio.Queue, request, parameters, fastapi_request: Request, client):
+        citation = None 
+        try:
+            if request.stream:
+                stream_result = await client.chat.completions.create(**parameters, timeout=300)
+                async for chunk in stream_result:
+                    if await fastapi_request.is_disconnected():
+                        return
+                    if chunk.choices[0].delta.content:
+                        await token_queue.put(chunk.choices[0].delta.content)
+                    if citation is None and hasattr(chunk, "citations"):
+                        citation = chunk.citations
+            else:
+                single_result = await client.chat.completions.create(**parameters, timeout=300)
+                full_response_text = single_result.choices[0].message.content
+                if hasattr(single_result, "citations"):
+                    citation = single_result.citations
+
+                chunk_size = 10 
+                for i in range(0, len(full_response_text), chunk_size):
+                    if await fastapi_request.is_disconnected():
+                        return
+                    await token_queue.put(full_response_text[i:i+chunk_size])
+                    await asyncio.sleep(0.03)
+        except Exception as ex:
+            print(f"Produce tokens exception: {ex}")
+            await token_queue.put({"error": str(ex)})
+        finally:
+            if citation is not None and citation != "":
+                await token_queue.put("\n\n## 출처\n")
+                for idx, item in enumerate(citation):
+                    await token_queue.put(f"- [{idx+1}] {item}\n")
+            await token_queue.put(None)
+
     async def event_generator():
         response_text = ""
         try:
-            client = OpenAI(api_key=settings.api_key, base_url=(settings.base_url or None))
+            client = AsyncOpenAI(api_key=settings.api_key, base_url=(settings.base_url or None))
             parameters = {
                 "model": request.model.split(':')[0],
                 "temperature": request.temperature,
@@ -101,32 +230,7 @@ def get_response(request: ChatRequest, settings: ApiSettings, user: User, fastap
                 parameters["reasoning_effort"] = mapping.get(request.reason)
             
             token_queue = asyncio.Queue()
-            async def produce_tokens():
-                try:
-                    if request.stream:
-                        stream_result = client.chat.completions.create(**parameters, timeout=180)
-                        for chunk in stream_result:
-                            if await fastapi_request.is_disconnected():
-                                return
-                            if chunk.choices[0].delta.content:
-                                await token_queue.put(chunk.choices[0].delta.content)
-                    else:
-                        single_result = client.chat.completions.create(**parameters, timeout=180)
-                        full_response_text = single_result.choices[0].message.content
-                        chunk_size = 10
-
-                        for i in range(0, len(full_response_text), chunk_size):
-                            if await fastapi_request.is_disconnected():
-                                return
-                            await token_queue.put(full_response_text[i:i+chunk_size])
-                            await asyncio.sleep(0.03)
-                except Exception as ex:
-                    print(f"Produce tokens exception: {ex}")
-                    await token_queue.put({"error": str(ex)})
-                finally:
-                    await token_queue.put(None)
-
-            producer_task = asyncio.create_task(produce_tokens())
+            producer_task = asyncio.create_task(produce_tokens(token_queue, request, parameters, fastapi_request, client))
             while True:
                 token = await token_queue.get()
                 if token is None:
@@ -155,7 +259,10 @@ def get_response(request: ChatRequest, settings: ApiSettings, user: User, fastap
                 request.out_billing,
                 request.search_billing
             )
-            user_collection.update_one({"_id": ObjectId(user.user_id)}, {"$inc": {"billing": billing}})
+            user_collection.update_one(
+                {"_id": ObjectId(user.user_id)},
+                {"$inc": {"billing": billing}}
+            )
             conversation_collection.update_one(
                 {"user_id": user.user_id, "conversation_id": request.conversation_id},
                 {"$set": {
@@ -169,19 +276,21 @@ def get_response(request: ChatRequest, settings: ApiSettings, user: User, fastap
             )
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
-def get_alias(prompt: str) -> str:
-    client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
-    completion = client.chat.completions.create(
+async def get_alias(prompt: str) -> str:
+    client = AsyncOpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+    completion = await client.chat.completions.create(
         model="gpt-4o-mini",
         temperature=0.1,
         max_tokens=10,
         messages=[{
             "role": "user",
-            "content": f"다음 메세지를 20글자 내로 요약해서 별칭을 만들어. "
-                       f"질문에 응답하지 말고 별칭만 만들어. "
-                       f"띄어쓰기를 사용해. 문장부호를 쓰지 마. "
-                       f"응답에 '별칭'이라는 단어 자체를 언급하지 마. "
-                       f"메세지: [{prompt}]"
+            "content": (
+                "다음 메세지를 20글자 내로 요약해서 별칭을 만들어. "
+                "질문에 응답하지 말고 별칭만 만들어. "
+                "띄어쓰기를 사용해. 문장부호를 쓰지 마. "
+                "응답에 '별칭'이라는 단어 자체를 언급하지 마. "
+                f"메세지: [{prompt}]"
+            )
         }],
     )
     return completion.choices[0].message.content
@@ -198,7 +307,7 @@ async def gpt_endpoint(chat_request: ChatRequest, fastapi_request: Request, user
 async def gemini_endpoint(chat_request: ChatRequest, fastapi_request: Request, user: User = Depends(get_current_user)):
     settings = ApiSettings(
         api_key=os.getenv('GEMINI_API_KEY'),
-        base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
+        base_url="https://generativelanguage.googleapis.com/v1beta/openai"
     )
     return get_response(chat_request, settings, user, fastapi_request)
 

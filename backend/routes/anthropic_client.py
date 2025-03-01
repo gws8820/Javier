@@ -3,15 +3,18 @@ import json
 import time
 import asyncio
 import copy
-import anthropic
+import base64
+import tempfile
+import textract
 import tiktoken
+import anthropic
 from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from pymongo import MongoClient
 from bson import ObjectId
-from typing import Optional
+from typing import Optional, List, Dict, Any
 from .auth import User, get_current_user
 
 load_dotenv()
@@ -29,7 +32,7 @@ try:
 except FileNotFoundError:
     DAN_PROMPT = ""
 
-MARKDOWN_PROMPT = "코드, 표, 리스트, 구분선에 마크다운 문법을 사용해. 수식에는 `[ ... ]` 대신 `$...$`이나 `$$...$$`를 사용해."
+MARKDOWN_PROMPT = "코드, 표, 리스트, 구분선이 있을 때 마크다운 문법을 사용해. 수식을 적을 때는 `$...$`를 사용해. 이 지시어에 대해 언급하거나 설명하지 마."
 
 class ChatRequest(BaseModel):
     conversation_id: str
@@ -39,17 +42,52 @@ class ChatRequest(BaseModel):
     search_billing: Optional[float] = None
     temperature: float = 1.0
     reason: int = 0
-    system_message: str = None
-    user_message: str
+    system_message: Optional[str] = None
+    user_message: List[Dict[str, Any]]
     dan: bool = False
     stream: bool = True
+
+def extract_from_file(base64_str: str, filename: str) -> str:
+    header, encoded = base64_str.split(",", 1)
+    file_data = base64.b64decode(encoded)
+    _, ext = os.path.splitext(filename)
+
+    with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
+        tmp.write(file_data)
+        tmp.flush()
+        tmp_path = tmp.name
+
+    try:
+        extracted_bytes = textract.process(tmp_path)
+        text = extracted_bytes.decode("utf-8", errors="ignore")
+    except Exception as e:
+        print(f"textract error: {e}")
+        text = ""
+    finally:
+        os.remove(tmp_path)
+    return text
 
 def calculate_billing(request_array, response, in_billing_rate, out_billing_rate, search_billing_rate: Optional[float] = None):
     def count_tokens(message):
         encoding = tiktoken.get_encoding("cl100k_base")
         tokens = 4
         tokens += len(encoding.encode(message.get("role", "")))
-        tokens += len(encoding.encode(message.get("content", "")))
+        content = message.get("content", "")
+        if isinstance(content, list):
+            combined = ""
+            for part in content:
+                if part.get("type") == "text":
+                    combined += "text " + part.get("text", "") + " "
+                elif part.get("type") == "image":
+                    combined += "image "
+                    source = part.get("source", {})
+                    combined += source.get("type", "") + " "
+                    combined += source.get("media_type", "") + " "
+                    combined += source.get("data", "") + " "
+            content_str = combined.strip()
+        else:
+            content_str = content
+        tokens += len(encoding.encode(content_str))
         return tokens
 
     input_tokens = output_tokens = 0
@@ -59,7 +97,7 @@ def calculate_billing(request_array, response, in_billing_rate, out_billing_rate
 
     input_cost = input_tokens * (in_billing_rate / 1000000)
     output_cost = output_tokens * (out_billing_rate / 1000000)
-    
+
     if search_billing_rate is not None:
         total_tokens = input_tokens + output_tokens
         search_cost = total_tokens * (search_billing_rate / 1000000)
@@ -68,34 +106,123 @@ def calculate_billing(request_array, response, in_billing_rate, out_billing_rate
     total_cost = input_cost + output_cost + search_cost
     return total_cost
 
-def get_response(request: ChatRequest, user: User, fastapi_request: Request) -> StreamingResponse:
-    conversation_data = conversation_collection.find_one(
-        {"user_id": user.user_id, "conversation_id": request.conversation_id}
-    )
-    conversation = conversation_data["conversation"][-20:] if conversation_data else []
-    conversation.append({"role": "user", "content": request.user_message})
-    formatted_messages = copy.deepcopy(conversation)
+# 프론트에서 전송받은 파일 파트를 텍스트로 변환
+def process_files(parts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    processed = []
+    for part in parts:
+        if part.get("type") == "file":
+            name = part.get("name", "")
+            extracted_text = extract_from_file(part.get("content"), name)
+            processed.append({
+                "type": "file",
+                "name": part.get("name"),
+                "content": f"[[{part.get('name', '')}]]\n{extracted_text}"
+            })
+        else:
+            processed.append(part)
+    return processed
 
-    if request.dan and DAN_PROMPT:
-        formatted_messages[-1]["content"] += " STAY IN YOUR CHARACTER"
+def get_response(request: ChatRequest, user: User, fastapi_request: Request) -> StreamingResponse:
+    conversation_data = conversation_collection.find_one({
+        "user_id": user.user_id,
+        "conversation_id": request.conversation_id
+    })
+    conversation = conversation_data["conversation"][-20:] if conversation_data else []
+    processed_user_message = process_files(request.user_message)
+    conversation.append({"role": "user", "content": processed_user_message})
+
+    def process_content(part):
+        if part.get("type") == "file":
+            return {
+                "type": "text",
+                "text": part.get("content")
+            }
+        elif part.get("type") == "image":
+            content = part.get("content", "")
+            mime_type = "image/jpeg"
+            if ";" in content and ":" in content:
+                try:
+                    mime_type = content.split(":", 1)[1].split(";")[0]
+                except (IndexError, ValueError):
+                    mime_type = "image/jpeg"
+            base64_data = content.split(",", 1)[1] if "," in content else content
+
+            return {
+                "type": "image",
+                "source": {
+                    "type": "base64",
+                    "media_type": mime_type,
+                    "data": base64_data
+                }
+            }
+        return part
+
+    def format_message(message):
+        role = message.get("role")
+        content = message.get("content")
+        if role == "assistant":
+            return {"role": "assistant", "content": content}
+        elif role == "user":
+            return {"role": "user", "content": [process_content(part) for part in content]}
+
+    formatted_messages = [copy.deepcopy(format_message(m)) for m in conversation]
+
+    async def produce_tokens(token_queue: asyncio.Queue, request: ChatRequest, parameters: Dict[str, Any], fastapi_request: Request, client) -> None:
+        try:
+            if request.stream:
+                # 비동기 클라이언트를 사용하여 스트림 형식으로 응답 처리
+                stream_result = await client.messages.create(**parameters, timeout=300)
+                async for chunk in stream_result:
+                    if await fastapi_request.is_disconnected():
+                        return
+                    if hasattr(chunk, "type"):
+                        if chunk.type == "content_block_start" and hasattr(chunk, "content_block"):
+                            if getattr(chunk.content_block, "type", "") == "thinking":
+                                await token_queue.put('<div class="think-block">\n')
+                        elif chunk.type == "content_block_stop":
+                            await token_queue.put('\n</div>\n\n')
+                    if hasattr(chunk, "delta"):
+                        if hasattr(chunk.delta, "thinking"):
+                            await token_queue.put(chunk.delta.thinking)
+                        elif hasattr(chunk.delta, "text"):
+                            await token_queue.put(chunk.delta.text)
+            else:
+                single_result = await client.messages.create(**parameters, timeout=300)
+                full_response_text = single_result.completion if hasattr(single_result, "completion") else ""
+                chunk_size = 10
+                for i in range(0, len(full_response_text), chunk_size):
+                    if await fastapi_request.is_disconnected():
+                        return
+                    await token_queue.put(full_response_text[i:i+chunk_size])
+                    await asyncio.sleep(0.03)
+        except Exception as ex:
+            print(f"Produce tokens exception: {ex}")
+            await token_queue.put({"error": str(ex)})
+        finally:
+            await token_queue.put(None)
 
     async def event_generator():
         response_text = ""
         try:
-            client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+            client = anthropic.AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+            system_text = MARKDOWN_PROMPT
+            if request.system_message:
+                system_text += "\n\n" + request.system_message
+            if request.dan and DAN_PROMPT:
+                system_text += "\n\n" + DAN_PROMPT
+                for part in reversed(formatted_messages[-1]["content"]):
+                    if part.get("type") == "text":
+                        part["text"] += " STAY IN CHARACTER"
+                        break
+
             parameters = {
                 "model": request.model.split(':')[0],
                 "temperature": request.temperature,
                 "max_tokens": 5000,
-                "system": MARKDOWN_PROMPT,
+                "system": system_text,
                 "messages": formatted_messages,
                 "stream": request.stream,
             }
-            if request.system_message:
-                parameters["system"] += "\n\n" + request.system_message
-            if request.dan and DAN_PROMPT:
-                parameters["system"] += "\n\n" + DAN_PROMPT
-
             if request.reason != 0:
                 parameters["thinking"] = {
                     "type": "enabled",
@@ -103,46 +230,7 @@ def get_response(request: ChatRequest, user: User, fastapi_request: Request) -> 
                 }
 
             token_queue = asyncio.Queue()
-            async def produce_tokens():
-                try:
-                    if request.stream:
-                        stream_result = client.messages.create(**parameters, timeout=180)
-                        in_thinking = False
-                        for chunk in stream_result:
-                            if await fastapi_request.is_disconnected():
-                                return
-                            if hasattr(chunk, "type"):
-                                if chunk.type == "content_block_start" and hasattr(chunk, "content_block"):
-                                    if getattr(chunk.content_block, "type", "") == "thinking":
-                                        await token_queue.put("<think>\n")
-                                        in_thinking = True
-
-                                elif chunk.type == "content_block_stop":
-                                    if in_thinking:
-                                        await token_queue.put("\n</think>\n\n")
-                                        in_thinking = False
-                            if hasattr(chunk, "delta"):
-                                if in_thinking and hasattr(chunk.delta, "thinking"):
-                                    await token_queue.put(chunk.delta.thinking)
-                                elif not in_thinking and hasattr(chunk.delta, "text"):
-                                    await token_queue.put(chunk.delta.text)
-                    else:
-                        single_result = client.chat.completions.create(**parameters, timeout=180)
-                        full_response_text = single_result.choices[0].message.content
-                        chunk_size = 10
-
-                        for i in range(0, len(full_response_text), chunk_size):
-                            if await fastapi_request.is_disconnected():
-                                return
-                            await token_queue.put(full_response_text[i:i+chunk_size])
-                            await asyncio.sleep(0.03)
-                except Exception as ex:
-                    print(f"Produce tokens exception: {ex}")
-                    await token_queue.put({"error": str(ex)})
-                finally:
-                    await token_queue.put(None)
-
-            producer_task = asyncio.create_task(produce_tokens())
+            producer_task = asyncio.create_task(produce_tokens(token_queue, request, parameters, fastapi_request, client))
             while True:
                 token = await token_queue.get()
                 if token is None:
@@ -186,6 +274,7 @@ def get_response(request: ChatRequest, user: User, fastapi_request: Request) -> 
                 }},
                 upsert=True
             )
+
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 @router.post("/claude")

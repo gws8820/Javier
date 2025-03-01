@@ -1,6 +1,6 @@
 // src/App.js
 import axios from "axios";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -18,7 +18,7 @@ function App() {
   const [isSidebarVisible, setIsSidebarVisible] = useState(false);
   const [conversations, setConversations] = useState([]);
   const [isLoadingChat, setIsLoadingChat] = useState(false);
-  const [error, setError] = useState(null);
+  const [errorModal, setErrorModal] = useState(null);
 
   const addConversation = (newConversation) => {
     setConversations((prevConversations) => [
@@ -45,10 +45,10 @@ function App() {
         { withCredentials: true }
       );
       setConversations(response.data.conversations);
-      setError(null);
     } catch (error) {
       console.error("Failed to fetch conversations.", error);
-      setError("대화를 불러오는 데 실패했습니다.");
+      setErrorModal("대화를 불러오는 데 실패했습니다.");
+      setTimeout(() => setErrorModal(null), 3000);
     } finally {
       setIsLoadingChat(false);
     }
@@ -86,9 +86,9 @@ function App() {
     return () => window.removeEventListener("resize", updateSidebarVisibility);
   }, []);
 
-  const toggleSidebar = () => {
+  const toggleSidebar = useCallback(() => {
     setIsSidebarVisible((prev) => !prev);
-  };
+  }, []);
 
   return (
     isLoggedIn !== null ? (
@@ -99,12 +99,12 @@ function App() {
           toggleSidebar={toggleSidebar}
           conversations={conversations}
           isLoadingChat={isLoadingChat}
-          error={error}
+          errorModal={errorModal}
           deleteConversation={deleteConversation}
           deleteAllConversation={deleteAllConversation}
           fetchConversations={fetchConversations}
           addConversation={addConversation}
-          setError={setError}
+          setErrorModal={setErrorModal}
         />
       </Router>
     ) : null
@@ -117,11 +117,12 @@ function AppLayout({
   toggleSidebar,
   conversations,
   isLoadingChat,
-  error,
+  errorModal,
   deleteConversation,
   deleteAllConversation,
   addConversation,
-  setError,
+  setErrorModal,
+  fetchConversations,
 }) {
   const location = useLocation();
   const hideLayoutRoutes = ["/login", "/register"];
@@ -152,11 +153,12 @@ function AppLayout({
                 isSidebarVisible={isSidebarVisible}
                 conversations={conversations}
                 isLoadingChat={isLoadingChat}
-                error={error}
+                errorModal={errorModal}
                 deleteConversation={deleteConversation}
                 deleteAllConversation={deleteAllConversation}
-                setError={setError}
+                setErrorModal={setErrorModal}
                 isResponsive={isResponsive}
+                fetchConversations={fetchConversations}
               />
             </motion.div>
           )}
@@ -178,11 +180,12 @@ function AppLayout({
                 isSidebarVisible={isSidebarVisible}
                 conversations={conversations}
                 isLoadingChat={isLoadingChat}
-                error={error}
+                errorModal={errorModal}
                 deleteConversation={deleteConversation}
                 deleteAllConversation={deleteAllConversation}
-                setError={setError}
+                setErrorModal={setErrorModal}
                 isResponsive={isResponsive}
+                fetchConversations={fetchConversations}
               />
             </div>
           )}

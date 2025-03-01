@@ -45,6 +45,20 @@
     background-color: rgb(240, 240, 240);
 }
 
-.highlight:hover {
-    background-color: rgb(255, 100, 100)
+.modal-button .highlight:hover {
+    background-color: rgb(255, 100, 100);
+}
+
+.error-modal {
+    display: flex;
+    align-items: center;
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%) !important;
+    background: rgb(239, 68, 68);
+    color: #fff;
+    padding: 10px 20px;
+    border-radius: 4px;
+    z-index: 1000;
 }

@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from fastapi import APIRouter, HTTPException, Cookie, Depends, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, EmailStr, constr
-from pymongo import MongoClient
+from motor.motor_asyncio import AsyncIOMotorClient
 from bson import ObjectId
 from datetime import datetime
 from jwt.exceptions import ExpiredSignatureError, InvalidTokenError
@@ -13,8 +13,8 @@ from jwt.exceptions import ExpiredSignatureError, InvalidTokenError
 load_dotenv()
 router = APIRouter()
 
-# MongoDB 설정
-mongoclient = MongoClient(os.getenv('MONGODB_URI'))
+# Motor client 설정
+mongoclient = AsyncIOMotorClient(os.getenv('MONGODB_URI'))
 db = mongoclient.chat_db
 collection = db.users
 
@@ -48,7 +48,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 # 사용자 등록
 @router.post("/register")
 async def register(user: RegisterUser):
-    if collection.find_one({"email": user.email}):
+    if await collection.find_one({"email": user.email}):
         raise HTTPException(status_code=400, detail="이미 존재하는 사용자입니다.")
     
     new_user = {
@@ -58,14 +58,13 @@ async def register(user: RegisterUser):
         "billing": 0.0,
         "created_at": datetime.utcnow()
     }
-    result = collection.insert_one(new_user)
-    
+    result = await collection.insert_one(new_user)
     return {"message": "Registration Success!", "user_id": str(result.inserted_id)}
 
 # 사용자 로그인
 @router.post("/login")
 async def login(user: LoginUser):
-    db_user = collection.find_one({"email": user.email})
+    db_user = await collection.find_one({"email": user.email})
     if not db_user or not verify_password(user.password, db_user["password"]):
         raise HTTPException(status_code=401, detail="이메일 또는 비밀번호 오류입니다.")
     
@@ -119,7 +118,7 @@ async def get_auth_status(access_token: str = Cookie(None)):
 
 # 현재 사용자 가져오기
 @router.get("/auth/user")
-def get_current_user(access_token: str = Cookie(None)) -> User:
+async def get_current_user(access_token: str = Cookie(None)) -> User:
     if not access_token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -135,7 +134,7 @@ def get_current_user(access_token: str = Cookie(None)) -> User:
             detail="Invalid token"
         )
     
-    db_user = collection.find_one({"_id": ObjectId(user_id)})
+    db_user = await collection.find_one({"_id": ObjectId(user_id)})
     if not db_user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

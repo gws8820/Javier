@@ -9,6 +9,7 @@ export const SettingsProvider = ({ children }) => {
   const [temperature, setTemperature] = useState(0.5);
   const [reason, setReason] = useState(2);
   const [systemMessage, setSystemMessage] = useState("");
+  const [isImage, setIsImage] = useState(false);
   const [isSearch, setIsSearch] = useState(false);
   const [isDAN, setIsDAN] = useState(false);
   const [isInference, setIsInference] = useState(false);
@@ -20,7 +21,7 @@ export const SettingsProvider = ({ children }) => {
     const selectedModel = modelsData.models.find(m => m.model_name === newModel);
     const typeOfModel = selectedModel?.type || "";
     setModelType(typeOfModel);
-
+    
     setIsInference(selectedModel?.inference);
     setIsSearch(selectedModel?.capabilities?.search);
 
@@ -54,6 +55,7 @@ export const SettingsProvider = ({ children }) => {
         temperature,
         reason,
         systemMessage,
+        isImage,
         isInference,
         isSearch,
         isDAN,
@@ -62,6 +64,7 @@ export const SettingsProvider = ({ children }) => {
         setTemperature,
         setReason,
         setSystemMessage,
+        setIsImage,
         setIsInference,
         setIsSearch,
         setIsDAN,

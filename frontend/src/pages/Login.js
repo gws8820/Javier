@@ -2,15 +2,14 @@
 import axios from "axios";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { CiWarning } from "react-icons/ci";
 import { motion, AnimatePresence } from "framer-motion";
-import Modal from "../components/Modal";
 import "../styles/Auth.css";
 
 function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [modalMessage, setModalMessage] = useState("");
-  const [showModal, setShowModal] = useState(false);
+  const [errorModal, setErrorModal] = useState("");
   const navigate = useNavigate();
 
   function validateEmail(email) {
@@ -22,15 +21,15 @@ function Login() {
   async function handleLogin() {
     // 빈 필드 검사
     if (!email || !password) {
-      setModalMessage("모든 필드를 입력해 주세요.");
-      setShowModal(true);
+      setErrorModal("모든 필드를 입력해 주세요.");
+      setTimeout(() => setErrorModal(null), 2000);
       return;
     }
 
     // 이메일 형식 검사
     if (!validateEmail(email)) {
-      setModalMessage("올바른 이메일 형식을 입력해 주세요.");
-      setShowModal(true);
+      setErrorModal("올바른 이메일 형식을 입력해 주세요.");
+      setTimeout(() => setErrorModal(null), 2000);
       return;
     }
 
@@ -43,14 +42,20 @@ function Login() {
       window.location.reload();
     } catch (error) {
       const detail = error.response?.data?.detail;
-      setModalMessage(
+      setErrorModal(
         Array.isArray(detail)
           ? "잘못된 입력입니다."
           : detail || "알 수 없는 오류가 발생했습니다."
       );
-      setShowModal(true);
+      setTimeout(() => setErrorModal(null), 2000);
     }
   }
+
+  const handleKeyDown = (event) => {
+    if (event.key === "Enter") {
+      handleLogin();
+    }
+  };
 
   return (
     <motion.div
@@ -69,6 +74,7 @@ function Login() {
           placeholder="이메일"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
+          onKeyDown={handleKeyDown}
         />
         <input
           className="password field"
@@ -76,6 +82,7 @@ function Login() {
           placeholder="비밀번호"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
+          onKeyDown={handleKeyDown}
         />
         <button className="continue field" onClick={handleLogin}>
           로그인
@@ -89,7 +96,18 @@ function Login() {
       </div>
 
       <AnimatePresence>
-        {showModal && <Modal message={modalMessage} onConfirm={() => setShowModal(false)} />}
+        {errorModal && (
+          <motion.div
+            className="error-modal"
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.3 }}
+          >
+            <CiWarning style={{ marginRight: '4px', fontSize: '16px' }} />
+            {errorModal}
+          </motion.div>
+        )}
       </AnimatePresence>
     </motion.div>
   );

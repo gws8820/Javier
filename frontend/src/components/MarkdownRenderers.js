@@ -1,8 +1,16 @@
-// src/components/MarkdownRenderers.js
-import React from "react";
+// src/components/markdownrenderers.js
+import React, { useMemo } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import rehypeRaw from "rehype-raw";
+import rehypeKatex from "rehype-katex";
+import rehypeSanitize, { defaultSchema } from "rehype-sanitize"; 
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { GoCheck } from "react-icons/go";
 import { oneLight } from "react-syntax-highlighter/dist/esm/styles/prism";
+import { GoCopy, GoCheck } from "react-icons/go";
+import "../styles/Message.css";
+import "katex/dist/katex.min.css";
 
 export const InlineCode = React.memo(({ node, children, ...props }) => {
   return (
@@ -33,7 +41,7 @@ export const TempCodeBlock = React.memo(({ node, className, children, ...props }
         <div className="code-header">
           <span className="code-type">{language}</span>
           <button className="copy-button" onClick={handleCopy}>
-            {copied ? <GoCheck /> : "복사"}
+            {copied ? <GoCheck /> : <GoCopy />}
           </button>
         </div>
       </div>
@@ -43,7 +51,7 @@ export const TempCodeBlock = React.memo(({ node, className, children, ...props }
           borderRadius: "0px 0px 6px 6px",
           padding: "16px",
           backgroundColor: "#f5f5f5",
-          overflowX: "auto"
+          overflowX: "auto",
         }}
       >
         {String(children).replace(/\n$/, "")}
@@ -73,7 +81,7 @@ export const CodeBlock = React.memo(({ node, className, children, ...props }) =>
         <div className="code-header">
           <span className="code-type">{language}</span>
           <button className="copy-button" onClick={handleCopy}>
-          {copied ? <GoCheck /> : "복사"}
+            {copied ? <GoCheck /> : <GoCopy />}
           </button>
         </div>
       </div>
@@ -86,7 +94,7 @@ export const CodeBlock = React.memo(({ node, className, children, ...props }) =>
           borderRadius: "0px 0px 6px 6px",
           padding: "16px",
           backgroundColor: "#f5f5f5",
-          overflowX: "auto"
+          overflowX: "auto",
         }}
       >
         {String(children).replace(/\n$/, "")}
@@ -99,7 +107,6 @@ export const TempPre = React.memo((preProps) => {
   const codeProps = preProps.children.props;
   return <TempCodeBlock {...codeProps} />;
 });
-
 export const CompletedPre = React.memo((preProps) => {
   const codeProps = preProps.children.props;
   return <CodeBlock {...codeProps} />;
@@ -123,3 +130,67 @@ export const Th = React.memo(({ node, ...props }) => (
 export const Td = React.memo(({ node, ...props }) => (
   <td className="markdown-td" {...props} />
 ));
+
+function parseThinkBlocks(rawContent) {
+  const openThinkCount = (rawContent.match(/<think>/gi) || []).length;
+  const closeThinkCount = (rawContent.match(/<\/think>/gi) || []).length;
+  if (openThinkCount > closeThinkCount) {
+    rawContent += "</think>";
+  }
+  return rawContent.replace(
+    /<think>([\s\S]*?)<\/think>/gi,
+    (match) => `<div class="think-block">${match.replace(/<\/?think>/gi, "")}</div>`
+  );
+}
+
+export const MarkdownRenderer = React.memo(function MarkdownRenderer({ content, isComplete }) {
+  const finalContent = useMemo(() => {
+    return parseThinkBlocks(content);
+  }, [content]);
+
+  return (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm, remarkMath]}
+      rehypePlugins={[
+        rehypeRaw,
+        [
+          rehypeSanitize,
+          {
+            ...defaultSchema,
+            attributes: {
+              ...defaultSchema.attributes,
+              div: [
+                ...(defaultSchema.attributes?.div || []),
+                ["className", "think-block"],
+              ],
+              code: [
+                ...(defaultSchema.attributes?.code || []),
+                ["className", /^language-/, "math-inline", "math-display"],
+              ],
+            },
+          },
+        ],
+        [rehypeKatex, { strict: "ignore" }],
+      ]}
+      skipHtml={false}
+      components={{
+        a: ({ node, children, ...props }) => (
+          <a target="_blank" rel="noopener noreferrer" {...props}>
+            {children}
+          </a>
+        ),
+        code: InlineCode,
+        pre: isComplete ? CompletedPre : TempPre,
+        table: Table,
+        thead: Thead,
+        tbody: Tbody,
+        tr: Tr,
+        th: Th,
+        td: Td,
+        hr: () => null,
+      }}
+    >
+      {finalContent}
+    </ReactMarkdown>
+  );
+});

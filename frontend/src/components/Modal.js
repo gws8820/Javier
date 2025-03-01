@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import { motion } from "framer-motion";
 import "../styles/Modal.css";
 
-function Modal({ message, onConfirm, onCancel, showCancelButton = false }) {
+function Modal({ message, onConfirm, onCancel, showCancelButton = true }) {
   return createPortal(
     <motion.div
       className="modal-overlay"

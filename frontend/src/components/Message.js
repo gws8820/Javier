@@ -1,36 +1,24 @@
 import React from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import remarkMath from "remark-math";
-import rehypeRaw from "rehype-raw";
-import rehypeKatex from "rehype-katex";
-import rehypeSanitize, { defaultSchema } from "rehype-sanitize"; 
 import PropTypes from "prop-types";
-import { GoCopy, GoCheck, GoTrash, GoSync } from "react-icons/go";
+import { GoCopy, GoCheck, GoPencil, GoTrash, GoSync } from "react-icons/go";
 import { TbRefresh } from "react-icons/tb";
 import { motion } from "framer-motion";
-import {
-  InlineCode,
-  CompletedPre,
-  TempPre,
-  Table,
-  Thead,
-  Tbody,
-  Tr,
-  Th,
-  Td,
-} from "./MarkdownRenderers";
+import { MarkdownRenderer } from "./MarkdownRenderers";
 import "../styles/Message.css";
 import "katex/dist/katex.min.css";
 
-function Message({ messageIndex, role, content, isComplete, onDelete, onRegenerate }) {
+function Message({ messageIndex, role, content, isComplete, onDelete, onRegenerate, onEdit }) {
   const [copied, setCopied] = React.useState(false);
 
-  if (content.trim() === "\u200B") return null;
+  if ((typeof content === "string" && content.trim() === "\u200B") || (Array.isArray(content) && content.length === 0))
+    return null;
 
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(String(content).replace(/\n$/, ""));
+      const textToCopy = Array.isArray(content)
+        ? content.map((item) => (item.type === "text" ? item.text : item.name)).join(" ")
+        : String(content).replace(/\n$/, "");
+      await navigator.clipboard.writeText(textToCopy);
       setCopied(true);
       setTimeout(() => setCopied(false), 3000);
     } catch (err) {
@@ -38,87 +26,63 @@ function Message({ messageIndex, role, content, isComplete, onDelete, onRegenera
     }
   };
 
-  const exitAnimation = { exit: { opacity: 0, x: 20 }, transition: { duration: 0.3 } };
-
   if (role === "user") {
     return (
       <motion.div
         className="user-wrap"
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0, transition: { duration: 0.3, delay: 0.2, ease: "easeOut" } }}
-        {...exitAnimation}
+        exit={{ opacity: 0, x: 20, transition: { duration: 0.3 } }}
       >
-        <div className="chat-message user">
-          {content}
+        <div className="message-file-area">
+          {content.map((item, index) => {
+            if (item.type === "file") {
+              return (
+                <div key={index} className="file-object">
+                  <span className="file-name">{item.name}</span>
+                </div>
+              );
+            } else if (item.type === "image") {
+              return (
+                <div key={index} className="image-object">
+                  <img src={item.content} alt={item.file_name} />
+                </div>
+              );
+            }
+            return null;
+          })}
         </div>
-        <div className="message-function">
+  
+        <div className="chat-message user">
+          {content.map((item, index) => {
+            if (item.type === "text") {
+              return <span key={index}>{item.text}</span>;
+            }
+            return null;
+          })}
+        </div>
+  
+        <div className="message-function user">
           {copied ? (
             <GoCheck className="function-button" />
           ) : (
             <GoCopy className="function-button" onClick={handleCopy} />
           )}
-          <GoTrash
-            className="function-button"
-            onClick={() => onDelete(messageIndex)}
-          />
+          <GoPencil className="function-button" onClick={() => onEdit(messageIndex)} />
+          <GoTrash className="function-button" onClick={() => onDelete(messageIndex)} />
         </div>
       </motion.div>
     );
   } else if (role === "assistant") {
-    const openThinkCount = (content.match(/<think>/gi) || []).length;
-    const closeThinkCount = (content.match(/<\/think>/gi) || []).length;
-    if (openThinkCount > closeThinkCount) content += "</think>";
-    const prettifyContent = content.replace(
-      /<think>([\s\S]*?)<\/think>/gi,
-      innerText => `<div class="think-block">${innerText}</div>`
-    );
-
     return (
       <motion.div
         className="assistant-wrap"
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        {...exitAnimation}
+        {...{ exit: { opacity: 0, x: 20 }, transition: { duration: 0.3 } }}
       >
         <div className="chat-message assistant">
-          <ReactMarkdown
-            remarkPlugins={[remarkGfm, remarkMath]}
-            rehypePlugins={[
-              rehypeRaw,
-              [
-                rehypeSanitize,
-                {
-                  ...defaultSchema,
-                  attributes: {
-                    ...defaultSchema.attributes,
-                    div: [
-                      ...(defaultSchema.attributes?.div || []),
-                      ["className", "think-block"],
-                    ],
-                    code: [
-                      ...(defaultSchema.attributes?.code || []),
-                      ["className", /^language-/, "math-inline", "math-display"],
-                    ],
-                  },
-                },
-              ],
-              rehypeKatex,
-            ]}
-            skipHtml={false}
-            components={{
-              code: InlineCode,
-              pre: isComplete ? CompletedPre : TempPre,
-              table: Table,
-              thead: Thead,
-              tbody: Tbody,
-              tr: Tr,
-              th: Th,
-              td: Td,
-              hr: () => null,
-            }}
-          >
-            {prettifyContent}
-          </ReactMarkdown>
+          <MarkdownRenderer content={content} isComplete={isComplete} />
         </div>
         <div className="message-function">
           {copied ? (
@@ -126,7 +90,7 @@ function Message({ messageIndex, role, content, isComplete, onDelete, onRegenera
           ) : (
             <GoCopy className="function-button" onClick={handleCopy} />
           )}
-          <GoSync className="function-button" onClick={() => onRegenerate(messageIndex)}/>
+          <GoSync className="function-button" onClick={() => onRegenerate(messageIndex)} />
         </div>
       </motion.div>
     );
@@ -136,14 +100,16 @@ function Message({ messageIndex, role, content, isComplete, onDelete, onRegenera
         className="chat-message error"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        {...exitAnimation}
+        {...{ exit: { opacity: 0, x: 20 }, transition: { duration: 0.3 } }}
         transition={{ duration: 0.3, delay: 0.8, ease: "easeOut" }}
       >
-        <span style={{ marginRight: '7px' }}>{content}</span>
-        <TbRefresh
-          style={{ marginTop: '1px', color: '#666666', fontSize:'18px', cursor: 'pointer' }}
-          onClick={() => window.location.reload()}
-        />
+        <div style={{ marginRight: "7px" }}>{content}</div>
+        <div className="refresh-wrap">
+          <TbRefresh
+            style={{ marginTop: "1px", color: "#666666", fontSize: "18px", cursor: "pointer" }}
+            onClick={() => window.location.reload()}
+          />
+        </div>
       </motion.div>
     );
   }
@@ -151,8 +117,11 @@ function Message({ messageIndex, role, content, isComplete, onDelete, onRegenera
 
 Message.propTypes = {
   role: PropTypes.string.isRequired,
-  content: PropTypes.string.isRequired,
+  content: PropTypes.oneOfType([PropTypes.string, PropTypes.array]).isRequired,
   isComplete: PropTypes.bool,
+  onDelete: PropTypes.func,
+  onRegenerate: PropTypes.func,
+  onEdit: PropTypes.func,
 };
 
 Message.defaultProps = {
