@@ -51,6 +51,10 @@ function Main({ addConversation, isMobile }) {
     /\.(pdf|doc|docx|pptx|xlsx|csv|txt|rtf|html|htm|odt|eml|epub|msg|json|wav|mp3|ogg)$/i
   ,[]);
 
+  const getFileId = useCallback((file) => {
+    return `${file.name}-${file.size}-${file.lastModified}`;
+  }, []);
+
   useEffect(() => {
     setIsImage(false);
     setIsInference(false);
@@ -150,7 +154,7 @@ function Main({ addConversation, isMobile }) {
     }
   }, []);
 
-  const handleFileDelete =  useCallback((file) => {
+  const handleFileDelete = useCallback((file) => {
     setUploadedFiles((prev) => prev.filter((f) => f !== file));
   }, []);
 
@@ -167,7 +171,7 @@ function Main({ addConversation, isMobile }) {
   const handleDrop = useCallback((e) => {
     e.preventDefault();
     setIsDragActive(false);
-    const maxAllowed = 3;
+    const maxAllowed = 5;
     const files = Array.from(e.dataTransfer.files);
   
     const acceptedFiles = files.filter(
@@ -186,15 +190,23 @@ function Main({ addConversation, isMobile }) {
     if (acceptedFiles.length > 0) {
       setUploadedFiles((prev) => {
         const remaining = maxAllowed - prev.length;
-        if (acceptedFiles.length > remaining) {
+        const newFilesUnique = [];
+        const seen = new Set();
+        acceptedFiles.forEach((file) => {
+          const id = getFileId(file);
+          if (!prev.some((f) => getFileId(f) === id) && !seen.has(id)) {
+            seen.add(id);
+            newFilesUnique.push(file);
+          }
+        });
+        if (newFilesUnique.length > remaining) {
           setModalError("최대 업로드 가능한 파일 개수를 초과했습니다.");
           setTimeout(() => setModalError(null), 3000);
         }
-        const filesToAdd = acceptedFiles.slice(0, remaining);
-        return [...prev, ...filesToAdd];
+        return [...prev, ...newFilesUnique.slice(0, remaining)];
       });
     }
-  }, [allowedExtensions]);
+  }, [allowedExtensions, getFileId]);
 
   const handlePaste = useCallback((e) => {
     const maxAllowed = 3;
@@ -216,15 +228,23 @@ function Main({ addConversation, isMobile }) {
       e.preventDefault();
       setUploadedFiles((prev) => {
         const remaining = maxAllowed - prev.length;
-        if (filesToUpload.length > remaining) {
+        const newFilesUnique = [];
+        const seen = new Set();
+        filesToUpload.forEach((file) => {
+          const id = getFileId(file);
+          if (!prev.some((f) => getFileId(f) === id) && !seen.has(id)) {
+            seen.add(id);
+            newFilesUnique.push(file);
+          }
+        });
+        if (newFilesUnique.length > remaining) {
           setModalError("최대 업로드 가능한 파일 개수를 초과했습니다.");
           setTimeout(() => setModalError(null), 3000);
         }
-        const filesToAdd = filesToUpload.slice(0, remaining);
-        return [...prev, ...filesToAdd];
+        return [...prev, ...newFilesUnique.slice(0, remaining)];
       });
     }
-  }, [allowedExtensions]);
+  }, [allowedExtensions, getFileId]);
     
   const handleKeyDown = useCallback(
     (event) => {
@@ -286,7 +306,7 @@ function Main({ addConversation, isMobile }) {
                 <AnimatePresence>
                   {uploadedFiles.map((file) => (
                     <motion.div
-                      key={file.name}
+                      key={file.name + file.lastModified}
                       className="file-wrap"
                       initial={{ y: 4, opacity: 0 }}
                       animate={{ y: 0, opacity: 1 }}
@@ -338,7 +358,7 @@ function Main({ addConversation, isMobile }) {
               검색
             </div>
             <div
-              className={`function-button ${isImage? "disabled" : isInference ? "active" : ""}`}
+              className={`function-button ${isImage ? "disabled" : isInference ? "active" : ""}`}
               onClick={() => {
                 const newInference = !isInference;
                 setIsInference(newInference);
@@ -391,16 +411,24 @@ function Main({ addConversation, isMobile }) {
         ref={fileInputRef}
         style={{ display: "none" }}
         onChange={(e) => {
-          const maxAllowed = 3;
+          const maxAllowed = 5;
           const files = Array.from(e.target.files);
           setUploadedFiles((prev) => {
             const remaining = maxAllowed - prev.length;
-            if (files.length > remaining) {
+            const newFilesUnique = [];
+            const seen = new Set();
+            files.forEach((file) => {
+              const id = getFileId(file);
+              if (!prev.some((f) => getFileId(f) === id) && !seen.has(id)) {
+                seen.add(id);
+                newFilesUnique.push(file);
+              }
+            });
+            if (newFilesUnique.length > remaining) {
               setModalError("업로드 가능한 파일 개수를 초과했습니다.");
               setTimeout(() => setModalError(null), 3000);
             }
-            const filesToAdd = files.slice(0, remaining);
-            return [...prev, ...filesToAdd];
+            return [...prev, ...newFilesUnique.slice(0, remaining)];
           });
           e.target.value = "";
         }}

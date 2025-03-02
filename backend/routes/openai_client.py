@@ -2,11 +2,14 @@ import os
 import json
 import asyncio
 import base64
+import tempfile
+import textract
+import shutil
 import time
 import copy
 import tiktoken
 from dotenv import load_dotenv
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, File, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from pymongo import MongoClient
@@ -51,31 +54,6 @@ class ApiSettings(BaseModel):
     api_key: str
     base_url: str = ""
 
-def extract_from_file(base64_str: str, filename: str) -> str:
-    import textract
-    import tempfile
-    import os
-
-    header, encoded = base64_str.split(",", 1)
-    file_data = base64.b64decode(encoded)
-    _, ext = os.path.splitext(filename)
-
-    with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
-        tmp.write(file_data)
-        tmp.flush()
-        tmp_path = tmp.name
-
-    try:
-        extracted_bytes = textract.process(tmp_path)
-        text = extracted_bytes.decode("utf-8", errors="ignore")
-    except Exception as e:
-        print(f"textract error: {e}")
-        text = ""
-    finally:
-        os.remove(tmp_path)
-
-    return text
-
 def calculate_billing(request_array, response, in_billing_rate, out_billing_rate, search_billing_rate: Optional[float] = None):
     def count_tokens(message):
         encoding = tiktoken.get_encoding("cl100k_base")
@@ -89,7 +67,8 @@ def calculate_billing(request_array, response, in_billing_rate, out_billing_rate
                 if part.get("type") == "text":
                     combined += "text " + part.get("text", "") + " "
                 elif part.get("type") == "image_url":
-                    combined += "image_url " + part.get("image_url", {}).get("url", "") + " "
+                    combined += "image_url "
+                    tokens += 1000
             content_str = combined.strip()
         else:
             content_str = content
@@ -113,10 +92,30 @@ def calculate_billing(request_array, response, in_billing_rate, out_billing_rate
     return total_cost
 
 def process_files(parts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def extract_text(base64_str: str, filename: str) -> str:
+        header, encoded = base64_str.split(",", 1)
+        file_data = base64.b64decode(encoded)
+        _, ext = os.path.splitext(filename)
+
+        with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
+            tmp.write(file_data)
+            tmp.flush()
+            tmp_path = tmp.name
+
+        try:
+            extracted_bytes = textract.process(tmp_path)
+            text = extracted_bytes.decode("utf-8", errors="ignore")
+        except Exception as e:
+            print(f"textract error: {e}")
+            text = ""
+        finally:
+            os.remove(tmp_path)
+        return text
+
     processed = []
     for part in parts:
         if part.get("type") == "file":
-            extracted_text = extract_from_file(part.get("content"), part.get("name", ""))
+            extracted_text = extract_text(part.get("content"), part.get("name", ""))
             processed.append({
                 "type": "file",
                 "name": part.get("name"),
@@ -125,9 +124,38 @@ def process_files(parts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         else:
             processed.append(part)
     return processed
-    
+
+def format_message(message):
+    def normalize_content(part):
+        if part.get("type") == "file":
+            return {
+                "type": "text",
+                "text": part.get("content")
+            }
+        elif part.get("type") == "image":
+            file_path = part.get("content")
+            try:
+                abs_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), file_path.lstrip("/"))
+                with open(abs_path, "rb") as f:
+                    file_data = f.read()
+                ext = part.get("name").split(".")[-1]
+                base64_data = "data:image/" + ext + ";base64," + base64.b64encode(file_data).decode("utf-8")
+            except Exception as e:
+                base64_data = ""
+            return {
+                "type": "image_url",
+                "image_url": {"url": base64_data}
+            }
+        return part
+
+    role = message.get("role")
+    content = message.get("content")
+    if role == "assistant":
+        return {"role": "assistant", "content": content}
+    elif role == "user":
+        return {"role": "user", "content": [normalize_content(part) for part in content]}
+        
 def get_response(request: ChatRequest, settings: ApiSettings, user: User, fastapi_request: Request):
-    # 기존 동기 호출은 그대로 둡니다.
     conversation_data = conversation_collection.find_one({
         "user_id": user.user_id,
         "conversation_id": request.conversation_id
@@ -135,27 +163,6 @@ def get_response(request: ChatRequest, settings: ApiSettings, user: User, fastap
     conversation = conversation_data["conversation"][-20:] if conversation_data else []
     processed_user_message = process_files(request.user_message)
     conversation.append({"role": "user", "content": processed_user_message})
-
-    def process_content(part):
-        if part.get("type") == "file":
-            return {
-                "type": "text",
-                "text": part.get("content")
-            }
-        elif part.get("type") == "image":
-            return {
-                "type": "image_url",
-                "image_url": {"url": part.get("content")}
-            }
-        return part
-
-    def format_message(message):
-        role = message.get("role")
-        content = message.get("content")
-        if role == "assistant":
-            return {"role": "assistant", "content": content}
-        elif role == "user":
-            return {"role": "user", "content": [process_content(part) for part in content]}
 
     formatted_messages = [copy.deepcopy(format_message(m)) for m in conversation]
 
@@ -175,7 +182,6 @@ def get_response(request: ChatRequest, settings: ApiSettings, user: User, fastap
             "content": [{"type": "text", "text": request.system_message}]
         })
 
-    # 맨 위에 시스템 프롬프트 추가
     formatted_messages.insert(0, {
         "role": settings.admin_role,
         "content": [{"type": "text", "text": MARKDOWN_PROMPT}]

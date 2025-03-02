@@ -9,8 +9,15 @@
   overflow-x: hidden;
   overflow-y: auto;
   border-radius: 5px;
-  -ms-overflow-style: none;
-  scrollbar-width: none; 
+}
+
+.chat-messages::-webkit-scrollbar {
+  width: 10px;
+}
+
+.chat-messages::-webkit-scrollbar-thumb {
+  background: rgb(230, 230, 230);
+  border-radius: 10px;
 }
 
 .chat-message {

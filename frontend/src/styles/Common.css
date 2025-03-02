@@ -10,22 +10,6 @@
     container-type: inline-size;
 }
 
-.drag-overlay {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    font-size: 22px;
-    color: #fff;
-    background: rgba(0, 0, 0, 0.4);
-    pointer-events: none;
-    z-index: 999;
-}
-
 .welcome-message {
     font-size: 30px;
     font-weight: 400;
@@ -233,6 +217,22 @@
     display: block;
     opacity: 1;
     visibility: visible;
+}
+
+.drag-overlay {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    font-size: 22px;
+    color: #fff;
+    background: rgba(0, 0, 0, 0.4);
+    pointer-events: none;
+    z-index: 999;
 }
 
 @keyframes spin {

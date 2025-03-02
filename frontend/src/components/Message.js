@@ -45,7 +45,7 @@ function Message({ messageIndex, role, content, isComplete, onDelete, onRegenera
             } else if (item.type === "image") {
               return (
                 <div key={index} className="image-object">
-                  <img src={item.content} alt={item.file_name} />
+                  <img src={`${process.env.REACT_APP_FASTAPI_URL}${item.content}`} alt={item.file_name} />
                 </div>
               );
             }

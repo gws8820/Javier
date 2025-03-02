@@ -26,7 +26,6 @@ function Chat({ isMobile }) {
   const [isThinking, setIsThinking] = useState(false);
   const [thinkingText, setThinkingText] = useState("");
   const [uploadedFiles, setUploadedFiles] = useState([]);
-
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [scrollOnSend, setScrollOnSend] = useState(false);
   const [deleteIndex, setdeleteIndex] = useState(null);
@@ -67,6 +66,10 @@ function Chat({ isMobile }) {
     /\.(pdf|doc|docx|pptx|xlsx|csv|txt|rtf|html|htm|odt|eml|epub|msg|json|wav|mp3|ogg)$/i
   ,[]);
 
+  const getFileId = useCallback((file) => {
+    return `${file.name}-${file.size}-${file.lastModified}`;
+  }, []);
+
   useEffect(() => {
     if (isFunctionOn) {
       if (isSearch && isInference) {
@@ -97,72 +100,20 @@ function Chat({ isMobile }) {
       }
     });
   }, []);
+
   const setErrorMessage = useCallback((message) => {
     setMessages((prev) => [...prev, { role: "error", content: message }]);
   }, []);
 
-  const compressImage = useCallback((file, quality, maxWidth, maxHeight) => {
-    return new Promise((resolve, reject) => {
-      const image = new Image();
-      image.src = URL.createObjectURL(file);
-
-      image.onload = () => {
-        let width = image.width;
-        let height = image.height;
-
-        if (width > height) {
-          if (width > maxWidth) {
-            height = Math.round((height * maxWidth) / width);
-            width = maxWidth;
-          }
-        } else {
-          if (height > maxHeight) {
-            width = Math.round((width * maxHeight) / height);
-            height = maxHeight;
-          }
-        }
-
-        const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext("2d");
-        ctx.drawImage(image, 0, 0, width, height);
-
-        canvas.toBlob(
-          (blob) => {
-            if (blob) {
-              resolve(blob);
-            } else {
-              reject(new Error("이미지 압축 실패"));
-            }
-          },
-          file.type,
-          quality
-        );
-      };
-
-      image.onerror = (err) => reject(err);
-    });
-  }, []);
-
   const convertFilesToBase64 = useCallback(async (fileList) => {
     const promises = fileList.map(async (file) => {
-      if (file.type.startsWith("image/")) {
-        try {
-          const compressedBlob = await compressImage(file, 0.8, 1024, 1024);
-          file = new File([compressedBlob], file.name, { type: compressedBlob.type });
-        } catch (error) {
-          setErrorMessage(`이미지 압축 중 오류가 발생했습니다:`, error);
-        }
-      }
-
       return new Promise((resolve) => {
         const reader = new FileReader();
         reader.onload = () => {
           resolve({ file, file_name: file.name, content: reader.result });
         };
         reader.onerror = () => {
-          setErrorMessage(`파일 읽기 중 오류가 발생했습니다:`, reader.error);
+          setErrorMessage(`파일 읽기 중 오류가 발생했습니다: ${reader.error}`);
           resolve(null);
         };
         reader.readAsDataURL(file);
@@ -173,52 +124,75 @@ function Chat({ isMobile }) {
     return results
       .filter((result) => result.status === "fulfilled" && result.value)
       .map((result) => result.value);
-  }, [compressImage, setErrorMessage]);
+  }, [setErrorMessage]);
 
   const sendMessage = useCallback(
     async (message, files = uploadedFiles) => {
       if (!message.trim() && files.length === 0) return;
       
+      setIsLoadingResponse(true);
+      setScrollOnSend(true);
+
       const contentParts = [];
       if (message.trim()) {
         contentParts.push({ type: "text", text: message });
       }
       
       if (files.length > 0) {
-        let fileParts = [];
-        if (files[0] && files[0].hasOwnProperty("content")) {
-          fileParts = files;
-        } else {
-          const base64Files = await convertFilesToBase64(files);
-          fileParts = base64Files.map((base64File) => {
-            if (base64File.file.type.startsWith("image/")) {
-              return {
-                type: "image",
-                name: base64File.file_name,
-                content: base64File.content,
-              };
-            } else {
-              return {
-                type: "file",
-                name: base64File.file_name,
-                content: base64File.content,
-              };
-            }
-          });
-        }
-        contentParts.push(...fileParts);
-      }
+        try {
+          let fileParts = [];
+          const rawFiles = files.filter((file) => file instanceof File);
+          const uploadedFilesFromMessage = files.filter((file) => !(file instanceof File));
       
+          const rawImageFiles = rawFiles.filter((file) => file.type.startsWith("image/"));
+          const rawOtherFiles = rawFiles.filter((file) => !file.type.startsWith("image/"));
+      
+          const uploadedImagePromises = rawImageFiles.map(async (file) => {
+            const formData = new FormData();
+            formData.append("file", file);
+            const res = await fetch(
+              `${process.env.REACT_APP_FASTAPI_URL}/upload`,
+              {
+                method: "POST",
+                body: formData,
+              }
+            );
+            const data = await res.json();
+            if (data.error) {
+              throw new Error(data.error);
+            }
+            return { type: "image", name: data.file_name, content: data.file_path };
+          });
+          const uploadedImagePartsFromRaw = await Promise.all(uploadedImagePromises);
+      
+          let rawOtherFileParts = [];
+          if (rawOtherFiles.length > 0) {
+            const base64Files = await convertFilesToBase64(rawOtherFiles);
+            rawOtherFileParts = base64Files.map((base64File) => ({
+              type: "file",
+              name: base64File.file_name,
+              content: base64File.content,
+            }));
+          }
+      
+          fileParts = [
+            ...uploadedImagePartsFromRaw,
+            ...rawOtherFileParts,
+            ...uploadedFilesFromMessage,
+          ];
+          contentParts.push(...fileParts);
+        } catch (error) {
+          setErrorMessage(`파일 업로드 중 오류가 발생했습니다: ${error.message}`);
+        }
+      }
+  
       setMessages((prev) => [...prev, { role: "user", content: contentParts }]);
       setInputText("");
       setUploadedFiles([]);
 
-      setIsLoadingResponse(true);
-      setScrollOnSend(true);
-
       const controller = new AbortController();
       abortControllerRef.current = controller;
-
+  
       try {
         const selectedModel = models.find((m) => m.model_name === model);
         if (!selectedModel) {
@@ -234,7 +208,7 @@ function Chat({ isMobile }) {
             setThinkingText(`생각 중${dots}`);
           }, 1000);
         }
-
+  
         const response = await fetch(
           `${process.env.REACT_APP_FASTAPI_URL}${selectedModel.endpoint}`,
           {
@@ -257,18 +231,18 @@ function Chat({ isMobile }) {
             signal: controller.signal,
           }
         );
-
+  
         const reader = response.body.getReader();
         const decoder = new TextDecoder("utf-8");
         let partialData = "";
         let assistantText = "";
-
+  
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
           const chunk = decoder.decode(value, { stream: true });
           partialData += chunk;
-
+  
           const lines = partialData.split("\n\n");
           for (let i = 0; i < lines.length - 1; i++) {
             const line = lines[i];
@@ -363,8 +337,9 @@ function Chat({ isMobile }) {
   }, [conversation_id, location.state]);
 
   useEffect(() => {
-    const hasUploadedImage = uploadedFiles.some((file) =>
-      file.type.startsWith("image/")
+    const hasUploadedImage = uploadedFiles.some(
+      (file) =>
+        file.type === "image" || (file.type && file.type.startsWith("image/"))
     );
   
     const hasMessageImage = messages.some((msg) => {
@@ -392,7 +367,7 @@ function Chat({ isMobile }) {
     }
   }, []);
 
-  const handleFileDelete =  useCallback((file) => {
+  const handleFileDelete = useCallback((file) => {
     setUploadedFiles((prev) => prev.filter((f) => f !== file));
   }, []);
 
@@ -409,7 +384,7 @@ function Chat({ isMobile }) {
   const handleDrop = useCallback((e) => {
     e.preventDefault();
     setIsDragActive(false);
-    const maxAllowed = 3;
+    const maxAllowed = 5;
     const files = Array.from(e.dataTransfer.files);
   
     const acceptedFiles = files.filter(
@@ -428,18 +403,26 @@ function Chat({ isMobile }) {
     if (acceptedFiles.length > 0) {
       setUploadedFiles((prev) => {
         const remaining = maxAllowed - prev.length;
-        if (acceptedFiles.length > remaining) {
+        const newFilesUnique = [];
+        const seen = new Set();
+        acceptedFiles.forEach((file) => {
+          const id = getFileId(file);
+          if (!prev.some((f) => getFileId(f) === id) && !seen.has(id)) {
+            seen.add(id);
+            newFilesUnique.push(file);
+          }
+        });
+        if (newFilesUnique.length > remaining) {
           setErrorModal("최대 업로드 가능한 파일 개수를 초과했습니다.");
           setTimeout(() => setErrorModal(null), 2000);
         }
-        const filesToAdd = acceptedFiles.slice(0, remaining);
-        return [...prev, ...filesToAdd];
+        return [...prev, ...newFilesUnique.slice(0, remaining)];
       });
     }
-  }, [allowedExtensions]);
+  }, [allowedExtensions, getFileId]);
 
   const handlePaste = useCallback((e) => {
-    const maxAllowed = 3;
+    const maxAllowed = 5;
     const items = e.clipboardData.items;
     const filesToUpload = [];
     for (let i = 0; i < items.length; i++) {
@@ -458,15 +441,23 @@ function Chat({ isMobile }) {
       e.preventDefault();
       setUploadedFiles((prev) => {
         const remaining = maxAllowed - prev.length;
-        if (filesToUpload.length > remaining) {
+        const newFilesUnique = [];
+        const seen = new Set();
+        filesToUpload.forEach((file) => {
+          const id = getFileId(file);
+          if (!prev.some((f) => getFileId(f) === id) && !seen.has(id)) {
+            seen.add(id);
+            newFilesUnique.push(file);
+          }
+        });
+        if (newFilesUnique.length > remaining) {
           setErrorModal("업로드 가능한 파일 개수를 초과했습니다.");
           setTimeout(() => setErrorModal(null), 2000);
         }
-        const filesToAdd = filesToUpload.slice(0, remaining);
-        return [...prev, ...filesToAdd];
+        return [...prev, ...newFilesUnique.slice(0, remaining)];
       });
     }
-  }, [allowedExtensions]);
+  }, [allowedExtensions, getFileId]);
 
   const deleteMessages = useCallback(
     async (startIndex) => {
@@ -529,17 +520,21 @@ function Chat({ isMobile }) {
             newUploadedFiles.push(part);
           }
         });
-
+  
         await deleteMessages(idx);
   
         setInputText(newInputText.trim());
         setUploadedFiles(newUploadedFiles);
+  
+        const hasImage = newUploadedFiles.some(
+          (file) =>
+            file.type === "image" || (file.type && file.type.startsWith("image/"))
+        );
+        setIsImage(hasImage);
       } catch (err) {
         setErrorMessage("메세지 편집 중 오류가 발생했습니다: " + err.message);
       }
-    },
-    [messages, deleteMessages, setErrorMessage]
-  );
+    }, [messages, deleteMessages, setErrorMessage, setIsImage]);
 
   useEffect(() => {
     const chatContainer = messagesEndRef.current?.parentElement;
@@ -679,7 +674,7 @@ function Chat({ isMobile }) {
                       <AnimatePresence>
                         {uploadedFiles.map((file) => (
                           <motion.div
-                            key={file.name}
+                            key={getFileId(file)}
                             className="file-wrap"
                             initial={{ y: 4, opacity: 0 }}
                             animate={{ y: 0, opacity: 1 }}
@@ -720,7 +715,7 @@ function Chat({ isMobile }) {
               <GoPlus style={{ strokeWidth: 0.5 }} />
             </div>
             <div
-              className={`function-button ${isImage? "disabled" : isSearch ? "active" : ""}`}
+              className={`function-button ${isImage ? "disabled" : isSearch ? "active" : ""}`}
               onClick={() => {
                 const newSearch = !isSearch;
                 setIsSearch(newSearch);
@@ -791,16 +786,24 @@ function Chat({ isMobile }) {
         ref={fileInputRef}
         style={{ display: "none" }}
         onChange={(e) => {
-          const maxAllowed = 3;
+          const maxAllowed = 5;
           const files = Array.from(e.target.files);
           setUploadedFiles((prev) => {
             const remaining = maxAllowed - prev.length;
-            if (files.length > remaining) {
+            const newFilesUnique = [];
+            const seen = new Set();
+            files.forEach((file) => {
+              const id = getFileId(file);
+              if (!prev.some((f) => getFileId(f) === id) && !seen.has(id)) {
+                seen.add(id);
+                newFilesUnique.push(file);
+              }
+            });
+            if (newFilesUnique.length > remaining) {
               setErrorModal("최대 업로드 가능한 파일 개수를 초과했습니다.");
               setTimeout(() => setErrorModal(null), 2000);
             }
-            const filesToAdd = files.slice(0, remaining);
-            return [...prev, ...filesToAdd];
+            return [...prev, ...newFilesUnique.slice(0, remaining)];
           });
           e.target.value = "";
         }}

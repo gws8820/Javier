@@ -1,11 +1,12 @@
 import os
 import json
-import time
 import asyncio
-import copy
 import base64
 import tempfile
 import textract
+import shutil
+import time
+import copy
 import tiktoken
 import anthropic
 from dotenv import load_dotenv
@@ -47,26 +48,6 @@ class ChatRequest(BaseModel):
     dan: bool = False
     stream: bool = True
 
-def extract_from_file(base64_str: str, filename: str) -> str:
-    header, encoded = base64_str.split(",", 1)
-    file_data = base64.b64decode(encoded)
-    _, ext = os.path.splitext(filename)
-
-    with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
-        tmp.write(file_data)
-        tmp.flush()
-        tmp_path = tmp.name
-
-    try:
-        extracted_bytes = textract.process(tmp_path)
-        text = extracted_bytes.decode("utf-8", errors="ignore")
-    except Exception as e:
-        print(f"textract error: {e}")
-        text = ""
-    finally:
-        os.remove(tmp_path)
-    return text
-
 def calculate_billing(request_array, response, in_billing_rate, out_billing_rate, search_billing_rate: Optional[float] = None):
     def count_tokens(message):
         encoding = tiktoken.get_encoding("cl100k_base")
@@ -80,10 +61,7 @@ def calculate_billing(request_array, response, in_billing_rate, out_billing_rate
                     combined += "text " + part.get("text", "") + " "
                 elif part.get("type") == "image":
                     combined += "image "
-                    source = part.get("source", {})
-                    combined += source.get("type", "") + " "
-                    combined += source.get("media_type", "") + " "
-                    combined += source.get("data", "") + " "
+                    tokens += 1000
             content_str = combined.strip()
         else:
             content_str = content
@@ -105,14 +83,32 @@ def calculate_billing(request_array, response, in_billing_rate, out_billing_rate
         search_cost = 0
     total_cost = input_cost + output_cost + search_cost
     return total_cost
-
-# 프론트에서 전송받은 파일 파트를 텍스트로 변환
+    
 def process_files(parts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def extract_text(base64_str: str, filename: str) -> str:
+        header, encoded = base64_str.split(",", 1)
+        file_data = base64.b64decode(encoded)
+        _, ext = os.path.splitext(filename)
+
+        with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
+            tmp.write(file_data)
+            tmp.flush()
+            tmp_path = tmp.name
+
+        try:
+            extracted_bytes = textract.process(tmp_path)
+            text = extracted_bytes.decode("utf-8", errors="ignore")
+        except Exception as e:
+            print(f"textract error: {e}")
+            text = ""
+        finally:
+            os.remove(tmp_path)
+        return text
+
     processed = []
     for part in parts:
         if part.get("type") == "file":
-            name = part.get("name", "")
-            extracted_text = extract_from_file(part.get("content"), name)
+            extracted_text = extract_text(part.get("content"), part.get("name", ""))
             processed.append({
                 "type": "file",
                 "name": part.get("name"),
@@ -122,6 +118,41 @@ def process_files(parts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             processed.append(part)
     return processed
 
+def format_message(message):
+    def normalize_content(part):
+        if part.get("type") == "file":
+            return {
+                "type": "text",
+                "text": part.get("content")
+            }
+        elif part.get("type") == "image":
+            file_path = part.get("content")
+            try:
+                abs_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), file_path.lstrip("/"))
+                with open(abs_path, "rb") as f:
+                    file_data = f.read()
+                ext = part.get("name").split(".")[-1]
+                base64_data = base64.b64encode(file_data).decode("utf-8")
+            except Exception:
+                base64_data = ""
+                ext = "jpeg"
+            return {
+                "type": "image",
+                "source": {
+                    "type": "base64",
+                    "media_type": f"image/{ext}",
+                    "data": base64_data,
+                },
+            }
+        return part
+
+    role = message.get("role")
+    content = message.get("content")
+    if role == "assistant":
+        return {"role": "assistant", "content": content}
+    elif role == "user":
+        return {"role": "user", "content": [normalize_content(part) for part in content]}
+        
 def get_response(request: ChatRequest, user: User, fastapi_request: Request) -> StreamingResponse:
     conversation_data = conversation_collection.find_one({
         "user_id": user.user_id,
@@ -131,46 +162,11 @@ def get_response(request: ChatRequest, user: User, fastapi_request: Request) -> 
     processed_user_message = process_files(request.user_message)
     conversation.append({"role": "user", "content": processed_user_message})
 
-    def process_content(part):
-        if part.get("type") == "file":
-            return {
-                "type": "text",
-                "text": part.get("content")
-            }
-        elif part.get("type") == "image":
-            content = part.get("content", "")
-            mime_type = "image/jpeg"
-            if ";" in content and ":" in content:
-                try:
-                    mime_type = content.split(":", 1)[1].split(";")[0]
-                except (IndexError, ValueError):
-                    mime_type = "image/jpeg"
-            base64_data = content.split(",", 1)[1] if "," in content else content
-
-            return {
-                "type": "image",
-                "source": {
-                    "type": "base64",
-                    "media_type": mime_type,
-                    "data": base64_data
-                }
-            }
-        return part
-
-    def format_message(message):
-        role = message.get("role")
-        content = message.get("content")
-        if role == "assistant":
-            return {"role": "assistant", "content": content}
-        elif role == "user":
-            return {"role": "user", "content": [process_content(part) for part in content]}
-
     formatted_messages = [copy.deepcopy(format_message(m)) for m in conversation]
 
     async def produce_tokens(token_queue: asyncio.Queue, request: ChatRequest, parameters: Dict[str, Any], fastapi_request: Request, client) -> None:
         try:
             if request.stream:
-                # 비동기 클라이언트를 사용하여 스트림 형식으로 응답 처리
                 stream_result = await client.messages.create(**parameters, timeout=300)
                 async for chunk in stream_result:
                     if await fastapi_request.is_disconnected():
@@ -178,9 +174,9 @@ def get_response(request: ChatRequest, user: User, fastapi_request: Request) -> 
                     if hasattr(chunk, "type"):
                         if chunk.type == "content_block_start" and hasattr(chunk, "content_block"):
                             if getattr(chunk.content_block, "type", "") == "thinking":
-                                await token_queue.put('<div class="think-block">\n')
+                                await token_queue.put('<think>\n')
                         elif chunk.type == "content_block_stop":
-                            await token_queue.put('\n</div>\n\n')
+                            await token_queue.put('\n</think>\n\n')
                     if hasattr(chunk, "delta"):
                         if hasattr(chunk.delta, "thinking"):
                             await token_queue.put(chunk.delta.thinking)
@@ -218,7 +214,7 @@ def get_response(request: ChatRequest, user: User, fastapi_request: Request) -> 
             parameters = {
                 "model": request.model.split(':')[0],
                 "temperature": request.temperature,
-                "max_tokens": 5000,
+                "max_tokens": 4096,
                 "system": system_text,
                 "messages": formatted_messages,
                 "stream": request.stream,
