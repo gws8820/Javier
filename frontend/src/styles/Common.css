@@ -161,7 +161,9 @@
 }
 
 .button-area .disabled {
-    color: rgb(93, 93, 93);
+    cursor: not-allowed;
+    opacity: 0.5;
+    pointer-events: none;
 }
 
 .send-button {
@@ -177,6 +179,12 @@
     color: rgb(0, 0, 0);
     border-radius: 24px;
     transition: background-color 0.3s ease;
+}
+
+.send-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+    pointer-events: none;
 }
 
 .send-button:hover {
@@ -245,12 +253,12 @@
     .welcome-message {
         position: absolute;
         max-width: 90%;
-        top: calc(50% - 60px);
+        top: calc(50% - 70px);
         font-size: 20px;
     }
     .input-container {
         width: 90%;
-        margin-bottom: 15px;
+        margin-bottom: 5%;
         padding: 6px;
     }
     .main-input-container {

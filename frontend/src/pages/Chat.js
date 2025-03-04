@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef, useContext } from "react";
-import { useParams, useLocation } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { FaPaperPlane, FaStop } from "react-icons/fa";
 import { GoPlus, GoGlobe, GoLightBulb, GoUnlock } from "react-icons/go";
 import { ImSpinner8 } from "react-icons/im";
@@ -14,9 +14,10 @@ import Message from "../components/Message";
 import Modal from "../components/Modal";
 import "../styles/Common.css";
 
-function Chat({ isMobile }) {
+function Chat({ fetchConversations, isTouch }) {
   const { conversation_id } = useParams();
   const location = useLocation();
+  const navigate = useNavigate();
 
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState("");
@@ -62,13 +63,93 @@ function Chat({ isMobile }) {
   } = useContext(SettingsContext);
 
   const models = modelsData.models;
-  const allowedExtensions = useMemo(() => 
-    /\.(pdf|doc|docx|pptx|xlsx|csv|txt|rtf|html|htm|odt|eml|epub|msg|json|wav|mp3|ogg)$/i
-  ,[]);
+  const allowedExtensions = useMemo(
+    () =>
+      /\.(pdf|doc|docx|pptx|xlsx|csv|txt|rtf|html|htm|odt|eml|epub|msg|json|wav|mp3|ogg)$/i,
+    []
+  );
 
   const getFileId = useCallback((file) => {
     return `${file.name}-${file.size}-${file.lastModified}`;
   }, []);
+
+  const uploadFiles = useCallback(
+    async (file) => {
+      if (file.type.startsWith("image/")) {
+        const formData = new FormData();
+        formData.append("file", file);
+        const res = await fetch(
+          `${process.env.REACT_APP_FASTAPI_URL}/upload`,
+          {
+            method: "POST",
+            body: formData,
+          }
+        );
+        const data = await res.json();
+        if (data.error) {
+          throw new Error(data.error);
+        }
+        return { type: "image", name: data.file_name, content: data.file_path, id: getFileId(file) };
+      } else {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () =>
+            resolve({ type: "file", name: file.name, content: reader.result, id: getFileId(file) });
+          reader.onerror = () =>
+            reject(new Error(`파일 변환 중 오류가 발생했습니다: ${reader.error}`));
+          reader.readAsDataURL(file);
+        });
+      }
+    },
+    [getFileId]
+  );
+
+  const processFiles = useCallback(
+    async (files) => {
+      const maxAllowed = 5;
+      let acceptedFiles = [];
+      const currentCount = uploadedFiles.length;
+      const remaining = maxAllowed - currentCount;
+
+      if (files.length > remaining) {
+        setErrorModal("최대 업로드 가능한 파일 개수를 초과했습니다.");
+        setTimeout(() => setErrorModal(null), 3000);
+        acceptedFiles = files.slice(0, remaining);
+      } else {
+        acceptedFiles = files;
+      }
+      setUploadedFiles((prev) => [
+        ...prev,
+        ...acceptedFiles.map((file) => ({
+          id: getFileId(file),
+          name: file.name,
+          isUploading: true,
+        })),
+      ]);
+
+      await Promise.all(
+        acceptedFiles.map(async (file) => {
+          try {
+            const result = await uploadFiles(file);
+            setUploadedFiles((prev) =>
+              prev.map((item) =>
+                item.id === getFileId(file)
+                  ? { ...result, isUploading: false }
+                  : item
+              )
+            );
+          } catch (err) {
+            setErrorModal("파일 처리 중 오류가 발생했습니다: " + err.message);
+            setTimeout(() => setErrorModal(null), 3000);
+            setUploadedFiles((prev) =>
+              prev.filter((item) => item.id !== getFileId(file))
+            );
+          }
+        })
+      );
+    },
+    [getFileId, uploadFiles, uploadedFiles]
+  );
 
   useEffect(() => {
     if (isFunctionOn) {
@@ -105,31 +186,10 @@ function Chat({ isMobile }) {
     setMessages((prev) => [...prev, { role: "error", content: message }]);
   }, []);
 
-  const convertFilesToBase64 = useCallback(async (fileList) => {
-    const promises = fileList.map(async (file) => {
-      return new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          resolve({ file, file_name: file.name, content: reader.result });
-        };
-        reader.onerror = () => {
-          setErrorMessage(`파일 읽기 중 오류가 발생했습니다: ${reader.error}`);
-          resolve(null);
-        };
-        reader.readAsDataURL(file);
-      });
-    });
-
-    const results = await Promise.allSettled(promises);
-    return results
-      .filter((result) => result.status === "fulfilled" && result.value)
-      .map((result) => result.value);
-  }, [setErrorMessage]);
-
   const sendMessage = useCallback(
     async (message, files = uploadedFiles) => {
       if (!message.trim() && files.length === 0) return;
-      
+
       setIsLoadingResponse(true);
       setScrollOnSend(true);
 
@@ -137,62 +197,17 @@ function Chat({ isMobile }) {
       if (message.trim()) {
         contentParts.push({ type: "text", text: message });
       }
-      
       if (files.length > 0) {
-        try {
-          let fileParts = [];
-          const rawFiles = files.filter((file) => file instanceof File);
-          const uploadedFilesFromMessage = files.filter((file) => !(file instanceof File));
-      
-          const rawImageFiles = rawFiles.filter((file) => file.type.startsWith("image/"));
-          const rawOtherFiles = rawFiles.filter((file) => !file.type.startsWith("image/"));
-      
-          const uploadedImagePromises = rawImageFiles.map(async (file) => {
-            const formData = new FormData();
-            formData.append("file", file);
-            const res = await fetch(
-              `${process.env.REACT_APP_FASTAPI_URL}/upload`,
-              {
-                method: "POST",
-                body: formData,
-              }
-            );
-            const data = await res.json();
-            if (data.error) {
-              throw new Error(data.error);
-            }
-            return { type: "image", name: data.file_name, content: data.file_path };
-          });
-          const uploadedImagePartsFromRaw = await Promise.all(uploadedImagePromises);
-      
-          let rawOtherFileParts = [];
-          if (rawOtherFiles.length > 0) {
-            const base64Files = await convertFilesToBase64(rawOtherFiles);
-            rawOtherFileParts = base64Files.map((base64File) => ({
-              type: "file",
-              name: base64File.file_name,
-              content: base64File.content,
-            }));
-          }
-      
-          fileParts = [
-            ...uploadedImagePartsFromRaw,
-            ...rawOtherFileParts,
-            ...uploadedFilesFromMessage,
-          ];
-          contentParts.push(...fileParts);
-        } catch (error) {
-          setErrorMessage(`파일 업로드 중 오류가 발생했습니다: ${error.message}`);
-        }
+        contentParts.push(...files);
       }
-  
+
       setMessages((prev) => [...prev, { role: "user", content: contentParts }]);
       setInputText("");
       setUploadedFiles([]);
 
       const controller = new AbortController();
       abortControllerRef.current = controller;
-  
+
       try {
         const selectedModel = models.find((m) => m.model_name === model);
         if (!selectedModel) {
@@ -208,7 +223,7 @@ function Chat({ isMobile }) {
             setThinkingText(`생각 중${dots}`);
           }, 1000);
         }
-  
+
         const response = await fetch(
           `${process.env.REACT_APP_FASTAPI_URL}${selectedModel.endpoint}`,
           {
@@ -231,18 +246,18 @@ function Chat({ isMobile }) {
             signal: controller.signal,
           }
         );
-  
+
         const reader = response.body.getReader();
         const decoder = new TextDecoder("utf-8");
         let partialData = "";
         let assistantText = "";
-  
+
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
           const chunk = decoder.decode(value, { stream: true });
           partialData += chunk;
-  
+
           const lines = partialData.split("\n\n");
           for (let i = 0; i < lines.length - 1; i++) {
             const line = lines[i];
@@ -259,7 +274,7 @@ function Chat({ isMobile }) {
                   updateAssistantMessage(assistantText, false);
                 }
               } catch (err) {
-                setErrorMessage("데이터 처리 중 오류가 발생했습니다: " + err.message);
+                setErrorMessage("스트리밍 중 오류가 발생했습니다: " + err.message);
                 reader.cancel();
                 return;
               }
@@ -293,7 +308,6 @@ function Chat({ isMobile }) {
       isInference,
       isDAN,
       uploadedFiles,
-      convertFilesToBase64,
     ]
   );
 
@@ -304,7 +318,7 @@ function Chat({ isMobile }) {
         setIsImage(false);
         setIsInference(false);
         setIsSearch(false);
-  
+
         const res = await axios.get(
           `${process.env.REACT_APP_FASTAPI_URL}/conversation/${conversation_id}`,
           { withCredentials: true }
@@ -313,12 +327,12 @@ function Chat({ isMobile }) {
         setTemperature(res.data.temperature);
         setReason(res.data.reason);
         setSystemMessage(res.data.system_message);
-  
+
         const updatedMessages = res.data.messages.map((m) =>
           m.role === "assistant" ? { ...m, isComplete: true } : m
         );
         setMessages(updatedMessages);
-  
+
         if (location.state?.initialMessage && updatedMessages.length === 0) {
           if (location.state.initialFiles && location.state.initialFiles.length > 0) {
             sendMessage(location.state.initialMessage, location.state.initialFiles);
@@ -327,20 +341,29 @@ function Chat({ isMobile }) {
           }
         }
       } catch (err) {
-        setErrorMessage("초기화 중 오류가 발생했습니다: " + err.message);
+        if (err.response && err.response.status === 404) {
+          fetchConversations();
+          navigate("/", { state: { errorModal: "대화를 찾을 수 없습니다." } });
+        } else {
+          fetchConversations();
+          navigate("/", { state: { errorModal: "데이터를 불러오는 중 오류가 발생했습니다." } });
+        }
       } finally {
         setIsLoadingChat(false);
       }
     };
+
     initializeChat();
     // eslint-disable-next-line
   }, [conversation_id, location.state]);
 
   useEffect(() => {
-    const hasUploadedImage = uploadedFiles.some(
-      (file) =>
-        file.type === "image" || (file.type && file.type.startsWith("image/"))
-    );
+    const hasUploadedImage = uploadedFiles.some((file) => {
+      if (file.type && (file.type === "image" || file.type.startsWith("image/"))) {
+        return true;
+      }
+      return /\.(jpe?g|png|gif|bmp|webp)$/i.test(file.name);
+    });
   
     const hasMessageImage = messages.some((msg) => {
       if (Array.isArray(msg.content)) {
@@ -358,7 +381,7 @@ function Chat({ isMobile }) {
         updateModel("gpt-4o");
       }
     }
-  }, [uploadedFiles, messages, setIsImage, model, updateModel, models]);
+  }, [uploadedFiles, messages, model, models, setIsImage, updateModel]);
 
   const handleFileClick = useCallback((e) => {
     e.stopPropagation();
@@ -368,7 +391,7 @@ function Chat({ isMobile }) {
   }, []);
 
   const handleFileDelete = useCallback((file) => {
-    setUploadedFiles((prev) => prev.filter((f) => f !== file));
+    setUploadedFiles((prev) => prev.filter((f) => f.id !== file.id));
   }, []);
 
   const handleDragOver = useCallback((e) => {
@@ -381,97 +404,68 @@ function Chat({ isMobile }) {
     setIsDragActive(false);
   }, []);
 
-  const handleDrop = useCallback((e) => {
-    e.preventDefault();
-    setIsDragActive(false);
-    const maxAllowed = 5;
-    const files = Array.from(e.dataTransfer.files);
-  
-    const acceptedFiles = files.filter(
-      (file) =>
-        file.type.startsWith("image/") || allowedExtensions.test(file.name)
-    );
-    const rejectedFiles = files.filter(
-      (file) =>
-        !file.type.startsWith("image/") && !allowedExtensions.test(file.name)
-    );
-  
-    if (rejectedFiles.length > 0) {
-      setErrorModal("지원되는 형식이 아닙니다.");
-      setTimeout(() => setErrorModal(null), 2000);
-    }
-    if (acceptedFiles.length > 0) {
-      setUploadedFiles((prev) => {
-        const remaining = maxAllowed - prev.length;
-        const newFilesUnique = [];
-        const seen = new Set();
-        acceptedFiles.forEach((file) => {
-          const id = getFileId(file);
-          if (!prev.some((f) => getFileId(f) === id) && !seen.has(id)) {
-            seen.add(id);
-            newFilesUnique.push(file);
-          }
-        });
-        if (newFilesUnique.length > remaining) {
-          setErrorModal("최대 업로드 가능한 파일 개수를 초과했습니다.");
-          setTimeout(() => setErrorModal(null), 2000);
-        }
-        return [...prev, ...newFilesUnique.slice(0, remaining)];
-      });
-    }
-  }, [allowedExtensions, getFileId]);
+  const handleDrop = useCallback(
+    async (e) => {
+      e.preventDefault();
+      setIsDragActive(false);
+      const files = Array.from(e.dataTransfer.files);
+      const acceptedFiles = files.filter(
+        (file) =>
+          file.type.startsWith("image/") || allowedExtensions.test(file.name)
+      );
+      const rejectedFiles = files.filter(
+        (file) =>
+          !file.type.startsWith("image/") && !allowedExtensions.test(file.name)
+      );
 
-  const handlePaste = useCallback((e) => {
-    const maxAllowed = 5;
-    const items = e.clipboardData.items;
-    const filesToUpload = [];
-    for (let i = 0; i < items.length; i++) {
-      const item = items[i];
-      if (item.kind === "file") {
-        const file = item.getAsFile();
-        if (
-          file &&
-          (file.type.startsWith("image/") || allowedExtensions.test(file.name))
-        ) {
-          filesToUpload.push(file);
+      if (rejectedFiles.length > 0) {
+        setErrorModal("지원되는 형식이 아닙니다.");
+        setTimeout(() => setErrorModal(null), 2000);
+      }
+
+      if (acceptedFiles.length > 0) {
+        await processFiles(acceptedFiles);
+      }
+    },
+    [allowedExtensions, processFiles]
+  );
+
+  const handlePaste = useCallback(
+    async (e) => {
+      const items = e.clipboardData.items;
+      const filesToUpload = [];
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.kind === "file") {
+          const file = item.getAsFile();
+          if (file && (file.type.startsWith("image/") || allowedExtensions.test(file.name))) {
+            filesToUpload.push(file);
+          }
         }
       }
-    }
-    if (filesToUpload.length > 0) {
-      e.preventDefault();
-      setUploadedFiles((prev) => {
-        const remaining = maxAllowed - prev.length;
-        const newFilesUnique = [];
-        const seen = new Set();
-        filesToUpload.forEach((file) => {
-          const id = getFileId(file);
-          if (!prev.some((f) => getFileId(f) === id) && !seen.has(id)) {
-            seen.add(id);
-            newFilesUnique.push(file);
-          }
-        });
-        if (newFilesUnique.length > remaining) {
-          setErrorModal("업로드 가능한 파일 개수를 초과했습니다.");
-          setTimeout(() => setErrorModal(null), 2000);
-        }
-        return [...prev, ...newFilesUnique.slice(0, remaining)];
-      });
-    }
-  }, [allowedExtensions, getFileId]);
+      if (filesToUpload.length > 0) {
+        e.preventDefault();
+        await processFiles(filesToUpload);
+      }
+    },
+    [allowedExtensions, processFiles]
+  );
 
   const deleteMessages = useCallback(
     async (startIndex) => {
-      try {
-        await axios.delete(
+      setMessages((prevMessages) => prevMessages.slice(0, startIndex));
+
+      return axios
+        .delete(
           `${process.env.REACT_APP_FASTAPI_URL}/conversation/${conversation_id}/${startIndex}`,
           { withCredentials: true }
-        );
-        setMessages((prevMessages) => prevMessages.slice(0, startIndex));
-      } catch (err) {
-        setErrorMessage("메세지 삭제 중 오류가 발생했습니다: " + err.message);
-      }
+        )
+        .catch((err) => {
+          setErrorModal("메세지 삭제 중 오류가 발생했습니다.");
+          setTimeout(() => setErrorModal(null), 2000);
+        });
     },
-    [conversation_id, setErrorMessage]
+    [conversation_id]
   );
 
   const handleDelete = useCallback((idx) => {
@@ -479,40 +473,44 @@ function Chat({ isMobile }) {
     setConfirmModal(true);
   }, []);
 
-  const handleRegenerate = useCallback(async (startIndex) => {
-    try {
-      const previousMessage = messages[startIndex - 1];
-      if (!previousMessage) return;
-  
-      let newInputText = "";
-      let newUploadedFiles = [];
-      
-      previousMessage.content.forEach((part) => {
-        if (part.type === "text") {
-          newInputText += part.text;
-        } else {
-          newUploadedFiles.push(part);
-        }
-      });
-  
-      await deleteMessages(startIndex - 1);
-      setInputText(newInputText.trim());
-      setUploadedFiles(newUploadedFiles);
-      sendMessage(newInputText, newUploadedFiles);
-    } catch (err) {
-      setErrorMessage("메세지 재생성 중 오류가 발생했습니다: " + err.message);
-    }
-  }, [messages, deleteMessages, sendMessage, setErrorMessage]);
+  const handleRegenerate = useCallback(
+    async (startIndex) => {
+      try {
+        const previousMessage = messages[startIndex - 1];
+        if (!previousMessage) return;
+
+        let newInputText = "";
+        let newUploadedFiles = [];
+
+        previousMessage.content.forEach((part) => {
+          if (part.type === "text") {
+            newInputText += part.text;
+          } else {
+            newUploadedFiles.push(part);
+          }
+        });
+
+        await deleteMessages(startIndex - 1);
+        setInputText(newInputText.trim());
+        setUploadedFiles(newUploadedFiles);
+        sendMessage(newInputText, newUploadedFiles);
+      } catch (err) {
+        setErrorModal("메세지 재생성 중 오류가 발생하였습니다.");
+        setTimeout(() => setErrorModal(null), 2000);
+      }
+    },
+    [messages, deleteMessages, sendMessage, setErrorModal]
+  );
 
   const handleEdit = useCallback(
     async (idx) => {
       try {
         const message = messages[idx];
         if (!message) return;
-  
+
         let newInputText = "";
         let newUploadedFiles = [];
-  
+
         message.content.forEach((part) => {
           if (part.type === "text") {
             newInputText += part.text;
@@ -520,21 +518,24 @@ function Chat({ isMobile }) {
             newUploadedFiles.push(part);
           }
         });
-  
+
         await deleteMessages(idx);
-  
+
         setInputText(newInputText.trim());
         setUploadedFiles(newUploadedFiles);
-  
+
         const hasImage = newUploadedFiles.some(
           (file) =>
             file.type === "image" || (file.type && file.type.startsWith("image/"))
         );
         setIsImage(hasImage);
       } catch (err) {
-        setErrorMessage("메세지 편집 중 오류가 발생했습니다: " + err.message);
+        setErrorModal("메세지 수정 중 오류가 발생했습니다: " + err.message);
+        setTimeout(() => setErrorModal(null), 2000);
       }
-    }, [messages, deleteMessages, setErrorMessage, setIsImage]);
+    },
+    [messages, deleteMessages, setIsImage, setErrorModal]
+  );
 
   useEffect(() => {
     const chatContainer = messagesEndRef.current?.parentElement;
@@ -569,12 +570,15 @@ function Chat({ isMobile }) {
     }
   }, [messages, isAtBottom]);
 
-  const handleKeyDown = useCallback((event) => {
-    if (event.key === "Enter" && !event.shiftKey && !isComposing && !isMobile) {
-      event.preventDefault();
-      sendMessage(inputText);
-    }
-  }, [inputText, isComposing, isMobile, sendMessage]);
+  const handleKeyDown = useCallback(
+    (event) => {
+      if (event.key === "Enter" && !event.shiftKey && !isComposing && !isTouch) {
+        event.preventDefault();
+        sendMessage(inputText);
+      }
+    },
+    [inputText, isComposing, isTouch, sendMessage]
+  );
 
   const adjustTextareaHeight = useCallback(() => {
     const textarea = textAreaRef.current;
@@ -588,7 +592,7 @@ function Chat({ isMobile }) {
   useEffect(() => {
     adjustTextareaHeight();
   }, [inputText, adjustTextareaHeight]);
-  
+
   return (
     <div
       className="container"
@@ -597,7 +601,15 @@ function Chat({ isMobile }) {
       onDrop={handleDrop}
     >
       {isLoadingChat && (
-        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100dvh", marginBottom: "30px" }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            height: "100dvh",
+            marginBottom: "30px",
+          }}
+        >
           <ClipLoader loading={true} size={50} />
         </div>
       )}
@@ -674,15 +686,35 @@ function Chat({ isMobile }) {
                       <AnimatePresence>
                         {uploadedFiles.map((file) => (
                           <motion.div
-                            key={getFileId(file)}
+                            key={file.id}
                             className="file-wrap"
                             initial={{ y: 4, opacity: 0 }}
                             animate={{ y: 0, opacity: 1 }}
                             exit={{ y: 4, opacity: 0 }}
                             transition={{ duration: 0.3 }}
+                            style={{ position: "relative" }}
                           >
                             <div className="file-object">
                               <span className="file-name">{file.name}</span>
+                              {file.isUploading && (
+                                <div
+                                  className="file-upload-overlay"
+                                  style={{
+                                    position: "absolute",
+                                    top: 0,
+                                    left: 0,
+                                    right: 0,
+                                    bottom: 0,
+                                    display: "flex",
+                                    justifyContent: "center",
+                                    alignItems: "center",
+                                    backgroundColor: "rgba(255,255,255,0.8)",
+                                    zIndex: 2,
+                                  }}
+                                >
+                                  <ClipLoader size={20} />
+                                </div>
+                              )}
                             </div>
                             <BiX
                               className="file-delete"
@@ -715,7 +747,9 @@ function Chat({ isMobile }) {
               <GoPlus style={{ strokeWidth: 0.5 }} />
             </div>
             <div
-              className={`function-button ${isImage ? "disabled" : isSearch ? "active" : ""}`}
+              className={`function-button ${
+                isImage ? "disabled" : isSearch ? "active" : ""
+              }`}
               onClick={() => {
                 const newSearch = !isSearch;
                 setIsSearch(newSearch);
@@ -743,7 +777,9 @@ function Chat({ isMobile }) {
               추론
             </div>
             <div
-              className={`function-button ${modelType !== "none" ? (isDAN ? "active" : "") : "disabled"}`}
+              className={`function-button ${
+                modelType === "none" ? "disabled" : isDAN ? "active" : ""
+              }`}
               onClick={() => {
                 if (modelType !== "none") {
                   setIsDAN(!isDAN);
@@ -755,7 +791,6 @@ function Chat({ isMobile }) {
             </div>
           </div>
         </div>
-        
         <button
           className="send-button"
           onClick={() => {
@@ -765,7 +800,7 @@ function Chat({ isMobile }) {
               sendMessage(inputText);
             }
           }}
-          disabled={!inputText.trim() && !isLoadingResponse}
+          disabled={(uploadedFiles.some((file) => file.isUploading))}
           aria-label={isLoadingResponse ? "전송 중단" : "메시지 전송"}
         >
           {isLoadingResponse ? (
@@ -785,33 +820,16 @@ function Chat({ isMobile }) {
         multiple
         ref={fileInputRef}
         style={{ display: "none" }}
-        onChange={(e) => {
-          const maxAllowed = 5;
+        onChange={async (e) => {
           const files = Array.from(e.target.files);
-          setUploadedFiles((prev) => {
-            const remaining = maxAllowed - prev.length;
-            const newFilesUnique = [];
-            const seen = new Set();
-            files.forEach((file) => {
-              const id = getFileId(file);
-              if (!prev.some((f) => getFileId(f) === id) && !seen.has(id)) {
-                seen.add(id);
-                newFilesUnique.push(file);
-              }
-            });
-            if (newFilesUnique.length > remaining) {
-              setErrorModal("최대 업로드 가능한 파일 개수를 초과했습니다.");
-              setTimeout(() => setErrorModal(null), 2000);
-            }
-            return [...prev, ...newFilesUnique.slice(0, remaining)];
-          });
+          await processFiles(files);
           e.target.value = "";
         }}
       />
 
       <AnimatePresence>
         {isDragActive && (
-          <motion.div 
+          <motion.div
             key="drag-overlay"
             className="drag-overlay"
             initial={{ opacity: 0 }}
@@ -833,7 +851,7 @@ function Chat({ isMobile }) {
             exit={{ opacity: 0, y: -20 }}
             transition={{ duration: 0.3 }}
           >
-            <CiWarning style={{ marginRight: '4px', fontSize: '16px' }} />
+            <CiWarning style={{ marginRight: "4px", fontSize: "16px" }} />
             {errorModal}
           </motion.div>
         )}

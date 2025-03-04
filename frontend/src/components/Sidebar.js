@@ -14,6 +14,7 @@ import "../styles/Sidebar.css";
 function Sidebar({
   toggleSidebar,
   isSidebarVisible,
+  isTouch,
   conversations,
   isLoadingChat,
   errorModal,
@@ -108,7 +109,7 @@ function Sidebar({
       setRenameInputValue("");
     } catch (error) {
       console.error("Failed to rename conversation.", error);
-      setErrorModal("대화 이름 수정에 실패했습니다.");
+      setErrorModal("대화 이름 편집에 실패했습니다.");
       setTimeout(() => setErrorModal(null), 2000);
     }
   };
@@ -190,6 +191,14 @@ function Sidebar({
   };
 
   const handleNavigate = (conversation_id) => {
+    const conversationExists = conversations.find(
+      (c) => c.conversation_id === conversation_id
+    );
+    if (!conversationExists) {
+      setErrorModal("대화가 존재하지 않습니다.");
+      setTimeout(() => setErrorModal(null), 2000);
+      return;
+    }
     navigate(`/chat/${conversation_id}`);
     if (isResponsive) toggleSidebar();
   };
@@ -267,14 +276,23 @@ function Sidebar({
       >
         <div className="header">
           <div className="Logo">Javier</div>
-          <Tooltip content="사이드바 닫기" position="bottom">
+          {isTouch ? (
             <div className="header-icon toggle-icon">
               <BsLayoutTextSidebar
                 onClick={toggleSidebar}
                 style={{ strokeWidth: 0.3 }}
               />
             </div>
-          </Tooltip>
+          ) : (
+            <Tooltip content="사이드바 닫기" position="bottom">
+              <div className="header-icon toggle-icon">
+                <BsLayoutTextSidebar
+                  onClick={toggleSidebar}
+                  style={{ strokeWidth: 0.3 }}
+                />
+              </div>
+            </Tooltip>
+          )}
         </div>
 
         <div className="newconv-container">
@@ -410,9 +428,9 @@ function Sidebar({
         {errorModal && (
           <motion.div
             className="error-modal"
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
+            initial={{ opacity: 0, y: -20, x: "-50%" }}
+            animate={{ opacity: 1, y: 0, x: "-50%" }}
+            exit={{ opacity: 0, y: -20, x: "-50%" }}
             transition={{ duration: 0.3 }}
           >
             <CiWarning style={{ marginRight: "4px", fontSize: "16px" }} />

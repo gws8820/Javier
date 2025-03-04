@@ -1,7 +1,13 @@
 // src/App.js
 import axios from "axios";
 import { useEffect, useState, useCallback } from "react";
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+  useLocation,
+} from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 
 import Sidebar from "./components/Sidebar";
@@ -29,7 +35,9 @@ function App() {
 
   const deleteConversation = (conversation_id) => {
     setConversations((prevConversations) =>
-      prevConversations.filter((conv) => conv.conversation_id !== conversation_id)
+      prevConversations.filter(
+        (conv) => conv.conversation_id !== conversation_id
+      )
     );
   };
 
@@ -46,9 +54,8 @@ function App() {
       );
       setConversations(response.data.conversations);
     } catch (error) {
-      console.error("Failed to fetch conversations.", error);
       setErrorModal("대화를 불러오는 데 실패했습니다.");
-      setTimeout(() => setErrorModal(null), 3000);
+      setTimeout(() => setErrorModal(null), 2000);
     } finally {
       setIsLoadingChat(false);
     }
@@ -90,25 +97,23 @@ function App() {
     setIsSidebarVisible((prev) => !prev);
   }, []);
 
-  return (
-    isLoggedIn !== null ? (
-      <Router>
-        <AppLayout
-          isLoggedIn={isLoggedIn}
-          isSidebarVisible={isSidebarVisible}
-          toggleSidebar={toggleSidebar}
-          conversations={conversations}
-          isLoadingChat={isLoadingChat}
-          errorModal={errorModal}
-          deleteConversation={deleteConversation}
-          deleteAllConversation={deleteAllConversation}
-          fetchConversations={fetchConversations}
-          addConversation={addConversation}
-          setErrorModal={setErrorModal}
-        />
-      </Router>
-    ) : null
-  );
+  return isLoggedIn !== null ? (
+    <Router>
+      <AppLayout
+        isLoggedIn={isLoggedIn}
+        isSidebarVisible={isSidebarVisible}
+        toggleSidebar={toggleSidebar}
+        conversations={conversations}
+        isLoadingChat={isLoadingChat}
+        errorModal={errorModal}
+        deleteConversation={deleteConversation}
+        deleteAllConversation={deleteAllConversation}
+        fetchConversations={fetchConversations}
+        addConversation={addConversation}
+        setErrorModal={setErrorModal}
+      />
+    </Router>
+  ) : null;
 }
 
 function AppLayout({
@@ -128,9 +133,48 @@ function AppLayout({
   const hideLayoutRoutes = ["/login", "/register"];
   const shouldShowLayout = !hideLayoutRoutes.includes(location.pathname);
 
-  const isMobile = /Mobi|Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  const isTouch =
+    typeof window !== "undefined" &&
+    ("ontouchstart" in window || navigator.maxTouchPoints > 0);
   const isResponsive = window.innerWidth <= 768;
   const marginLeft = shouldShowLayout && !isResponsive && isSidebarVisible ? 260 : 0;
+
+  useEffect(() => {
+    if (!isTouch) return;
+
+    let touchStartX = 0;
+    let touchStartY = 0;
+    const threshold = 20;
+
+    const handleTouchStart = (e) => {
+      touchStartX = e.touches[0].clientX;
+      touchStartY = e.touches[0].clientY;
+    };
+
+    const handleTouchEnd = (e) => {
+      const touchEndX = e.changedTouches[0].clientX;
+      const touchEndY = e.changedTouches[0].clientY;
+      const diffX = touchEndX - touchStartX;
+      const diffY = touchEndY - touchStartY;
+
+      if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > threshold) {
+        if (diffX > 0 && !isSidebarVisible) {
+          toggleSidebar();
+        } else if (diffX < 0 && isSidebarVisible) {
+          toggleSidebar();
+        }
+      }
+    };
+
+    document.addEventListener("touchstart", handleTouchStart);
+    document.addEventListener("touchend", handleTouchEnd);
+
+    return () => {
+      document.removeEventListener("touchstart", handleTouchStart);
+      document.removeEventListener("touchend", handleTouchEnd);
+    };
+  }, [isTouch, isSidebarVisible, toggleSidebar]);
+
   return (
     <div style={{ display: "flex", position: "relative" }}>
       {shouldShowLayout && (
@@ -151,6 +195,7 @@ function AppLayout({
               <Sidebar
                 toggleSidebar={toggleSidebar}
                 isSidebarVisible={isSidebarVisible}
+                isTouch={isTouch}
                 conversations={conversations}
                 isLoadingChat={isLoadingChat}
                 errorModal={errorModal}
@@ -178,6 +223,7 @@ function AppLayout({
               <Sidebar
                 toggleSidebar={toggleSidebar}
                 isSidebarVisible={isSidebarVisible}
+                isTouch={isTouch}
                 conversations={conversations}
                 isLoadingChat={isLoadingChat}
                 errorModal={errorModal}
@@ -218,7 +264,11 @@ function AppLayout({
       >
         <SettingsProvider>
           {shouldShowLayout && (
-            <Header toggleSidebar={toggleSidebar} isSidebarVisible={isSidebarVisible} />
+            <Header
+              toggleSidebar={toggleSidebar}
+              isSidebarVisible={isSidebarVisible}
+              isTouch={isTouch}
+            />
           )}
 
           <AnimatePresence mode="wait">
@@ -227,7 +277,7 @@ function AppLayout({
                 path="/"
                 element={
                   isLoggedIn ? (
-                    <Main addConversation={addConversation} isMobile={isMobile} />
+                    <Main addConversation={addConversation} isTouch={isTouch} />
                   ) : (
                     <Navigate to="/login" />
                   )
@@ -237,7 +287,7 @@ function AppLayout({
                 path="/chat/:conversation_id"
                 element={
                   isLoggedIn ? (
-                    <Chat isMobile={isMobile} />
+                    <Chat fetchConversations={fetchConversations} isTouch={isTouch} />
                   ) : (
                     <Navigate to="/login" />
                   )
@@ -246,21 +296,13 @@ function AppLayout({
               <Route
                 path="/login"
                 element={
-                  !isLoggedIn ? (
-                    <Login />
-                  ) : (
-                    <Navigate to="/" />
-                  )
+                  !isLoggedIn ? <Login /> : <Navigate to="/" />
                 }
               />
               <Route
                 path="/register"
                 element={
-                  !isLoggedIn ? (
-                    <Register />
-                  ) : (
-                    <Navigate to="/" />
-                  )
+                  !isLoggedIn ? <Register /> : <Navigate to="/" />
                 }
               />
             </Routes>

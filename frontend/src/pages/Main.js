@@ -1,6 +1,13 @@
 // src/pages/Main.js
-import React, { useState, useEffect, useCallback, useMemo, useRef, useContext } from "react";
-import { useNavigate } from "react-router-dom";
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+  useContext,
+} from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { FaPaperPlane, FaStop } from "react-icons/fa";
 import { GoPlus, GoGlobe, GoLightBulb, GoUnlock } from "react-icons/go";
 import { ImSpinner8 } from "react-icons/im";
@@ -11,15 +18,17 @@ import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 import modelsData from "../models.json";
 import "../styles/Common.css";
+import { ClipLoader } from "react-spinners";
 
-function Main({ addConversation, isMobile }) {
+function Main({ addConversation, isTouch }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const [inputText, setInputText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isComposing, setIsComposing] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState([]);
   const [isDragActive, setIsDragActive] = useState(false);
-  const [modalError, setModalError] = useState(null);
+  const [errorModal, setErrorModal] = useState(location.state?.errorModal || null);
 
   const textAreaRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -47,9 +56,11 @@ function Main({ addConversation, isMobile }) {
   } = useContext(SettingsContext);
 
   const models = modelsData.models;
-  const allowedExtensions = useMemo(() => 
-    /\.(pdf|doc|docx|pptx|xlsx|csv|txt|rtf|html|htm|odt|eml|epub|msg|json|wav|mp3|ogg)$/i
-  ,[]);
+  const allowedExtensions = useMemo(
+    () =>
+      /\.(pdf|doc|docx|pptx|xlsx|csv|txt|rtf|html|htm|odt|eml|epub|msg|json|wav|mp3|ogg)$/i,
+    []
+  );
 
   const getFileId = useCallback((file) => {
     return `${file.name}-${file.size}-${file.lastModified}`;
@@ -66,7 +77,7 @@ function Main({ addConversation, isMobile }) {
     setSystemMessage("");
     // eslint-disable-next-line
   }, []);
-  
+
   useEffect(() => {
     if (isFunctionOn) {
       if (isSearch && isInference) {
@@ -80,10 +91,107 @@ function Main({ addConversation, isMobile }) {
     // eslint-disable-next-line
   }, [isSearch, isInference, isFunctionOn]);
 
+  useEffect(() => {
+    if (location.state?.errorModal) {
+      setErrorModal(location.state.errorModal);
+      setTimeout(() => {
+        setErrorModal(null);
+        window.history.replaceState({}, document.title);
+      }, 2000);
+    }
+  }, [location.state]);
+
+  const uploadFiles = useCallback(
+    async (file) => {
+      if (file.type.startsWith("image/")) {
+        const formData = new FormData();
+        formData.append("file", file);
+        const res = await fetch(
+          `${process.env.REACT_APP_FASTAPI_URL}/upload`,
+          {
+            method: "POST",
+            body: formData,
+          }
+        );
+        const data = await res.json();
+        if (data.error) {
+          throw new Error(data.error);
+        }
+        return {
+          type: "image",
+          name: data.file_name,
+          content: data.file_path,
+          id: getFileId(file),
+        };
+      } else {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () =>
+            resolve({
+              type: "file",
+              name: file.name,
+              content: reader.result,
+              id: getFileId(file),
+            });
+          reader.onerror = () =>
+            reject(new Error(`파일 변환 중 오류가 발생했습니다: ${reader.error}`));
+          reader.readAsDataURL(file);
+        });
+      }
+    },
+    [getFileId]
+  );
+
+  const processFiles = useCallback(
+    async (files) => {
+      const maxAllowed = 5;
+      let acceptedFiles = [];
+      const currentCount = uploadedFiles.length;
+      const remaining = maxAllowed - currentCount;
+
+      if (files.length > remaining) {
+        setErrorModal("최대 업로드 가능한 파일 개수를 초과했습니다.");
+        setTimeout(() => setErrorModal(null), 3000);
+        acceptedFiles = files.slice(0, remaining);
+      } else {
+        acceptedFiles = files;
+      }
+      setUploadedFiles((prev) => [
+        ...prev,
+        ...acceptedFiles.map((file) => ({
+          id: getFileId(file),
+          name: file.name,
+          isUploading: true,
+        })),
+      ]);
+
+      await Promise.all(
+        acceptedFiles.map(async (file) => {
+          try {
+            const result = await uploadFiles(file);
+            setUploadedFiles((prev) =>
+              prev.map((item) =>
+                item.id === getFileId(file)
+                  ? { ...result, isUploading: false }
+                  : item
+              )
+            );
+          } catch (err) {
+            setErrorModal("파일 처리 중 오류가 발생했습니다: " + err.message);
+            setTimeout(() => setErrorModal(null), 3000);
+            setUploadedFiles((prev) =>
+              prev.filter((item) => item.id !== getFileId(file))
+            );
+          }
+        })
+      );
+    },
+    [getFileId, uploadFiles, uploadedFiles]
+  );
+
   const sendMessage = useCallback(
     async (message) => {
       if (!message.trim()) return;
-
       try {
         const selectedModel = models.find((m) => m.model_name === model);
         if (!selectedModel) {
@@ -115,7 +223,8 @@ function Main({ addConversation, isMobile }) {
           replace: false,
         });
       } catch (error) {
-        throw new Error("새 대화를 생성하는 데 실패했습니다.");
+        setErrorModal("새 대화를 시작하는 데 실패했습니다.");
+        setTimeout(() => setErrorModal(null), 2000);
       } finally {
         setIsLoading(false);
       }
@@ -133,19 +242,20 @@ function Main({ addConversation, isMobile }) {
   );
 
   useEffect(() => {
-    const hasUploadedImage = uploadedFiles.some((file) =>
-      file.type.startsWith("image/")
-    );
-  
+    const hasUploadedImage = uploadedFiles.some((file) => {
+      if (file.type && (file.type === "image" || file.type.startsWith("image/"))) {
+        return true;
+      }
+      return /\.(jpe?g|png|gif|bmp|webp)$/i.test(file.name);
+    });
     setIsImage(hasUploadedImage);
-  
     if (hasUploadedImage) {
       const selectedModel = models.find((m) => m.model_name === model);
       if (selectedModel && !selectedModel.capabilities?.image) {
         updateModel("gpt-4o");
       }
     }
-  }, [uploadedFiles, setIsImage, model, updateModel, models]);
+  }, [uploadedFiles, model, models, setIsImage, updateModel]);
 
   const handleFileClick = useCallback((e) => {
     e.stopPropagation();
@@ -155,7 +265,7 @@ function Main({ addConversation, isMobile }) {
   }, []);
 
   const handleFileDelete = useCallback((file) => {
-    setUploadedFiles((prev) => prev.filter((f) => f !== file));
+    setUploadedFiles((prev) => prev.filter((f) => f.id !== file.id));
   }, []);
 
   const handleDragOver = useCallback((e) => {
@@ -168,92 +278,67 @@ function Main({ addConversation, isMobile }) {
     setIsDragActive(false);
   }, []);
 
-  const handleDrop = useCallback((e) => {
-    e.preventDefault();
-    setIsDragActive(false);
-    const maxAllowed = 5;
-    const files = Array.from(e.dataTransfer.files);
-  
-    const acceptedFiles = files.filter(
-      (file) =>
-        file.type.startsWith("image/") || allowedExtensions.test(file.name)
-    );
-    const rejectedFiles = files.filter(
-      (file) =>
-        !file.type.startsWith("image/") && !allowedExtensions.test(file.name)
-    );
-  
-    if (rejectedFiles.length > 0) {
-      setModalError("지원되는 형식이 아닙니다.");
-      setTimeout(() => setModalError(null), 3000);
-    }
-    if (acceptedFiles.length > 0) {
-      setUploadedFiles((prev) => {
-        const remaining = maxAllowed - prev.length;
-        const newFilesUnique = [];
-        const seen = new Set();
-        acceptedFiles.forEach((file) => {
-          const id = getFileId(file);
-          if (!prev.some((f) => getFileId(f) === id) && !seen.has(id)) {
-            seen.add(id);
-            newFilesUnique.push(file);
-          }
-        });
-        if (newFilesUnique.length > remaining) {
-          setModalError("최대 업로드 가능한 파일 개수를 초과했습니다.");
-          setTimeout(() => setModalError(null), 3000);
-        }
-        return [...prev, ...newFilesUnique.slice(0, remaining)];
-      });
-    }
-  }, [allowedExtensions, getFileId]);
+  const handleDrop = useCallback(
+    async (e) => {
+      e.preventDefault();
+      setIsDragActive(false);
+      const files = Array.from(e.dataTransfer.files);
+      const acceptedFiles = files.filter(
+        (file) =>
+          file.type.startsWith("image/") || allowedExtensions.test(file.name)
+      );
+      const rejectedFiles = files.filter(
+        (file) =>
+          !file.type.startsWith("image/") && !allowedExtensions.test(file.name)
+      );
+      if (rejectedFiles.length > 0) {
+        setErrorModal("지원되는 형식이 아닙니다.");
+        setTimeout(() => setErrorModal(null), 3000);
+      }
+      if (acceptedFiles.length > 0) {
+        await processFiles(acceptedFiles);
+      }
+    },
+    [allowedExtensions, processFiles]
+  );
 
-  const handlePaste = useCallback((e) => {
-    const maxAllowed = 3;
-    const items = e.clipboardData.items;
-    const filesToUpload = [];
-    for (let i = 0; i < items.length; i++) {
-      const item = items[i];
-      if (item.kind === "file") {
-        const file = item.getAsFile();
-        if (
-          file &&
-          (file.type.startsWith("image/") || allowedExtensions.test(file.name))
-        ) {
-          filesToUpload.push(file);
+  const handlePaste = useCallback(
+    async (e) => {
+      const items = e.clipboardData.items;
+      const filesToUpload = [];
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.kind === "file") {
+          const file = item.getAsFile();
+          if (
+            file &&
+            (file.type.startsWith("image/") || allowedExtensions.test(file.name))
+          ) {
+            filesToUpload.push(file);
+          }
         }
       }
-    }
-    if (filesToUpload.length > 0) {
-      e.preventDefault();
-      setUploadedFiles((prev) => {
-        const remaining = maxAllowed - prev.length;
-        const newFilesUnique = [];
-        const seen = new Set();
-        filesToUpload.forEach((file) => {
-          const id = getFileId(file);
-          if (!prev.some((f) => getFileId(f) === id) && !seen.has(id)) {
-            seen.add(id);
-            newFilesUnique.push(file);
-          }
-        });
-        if (newFilesUnique.length > remaining) {
-          setModalError("최대 업로드 가능한 파일 개수를 초과했습니다.");
-          setTimeout(() => setModalError(null), 3000);
-        }
-        return [...prev, ...newFilesUnique.slice(0, remaining)];
-      });
-    }
-  }, [allowedExtensions, getFileId]);
-    
+      if (filesToUpload.length > 0) {
+        e.preventDefault();
+        await processFiles(filesToUpload);
+      }
+    },
+    [allowedExtensions, processFiles]
+  );
+
   const handleKeyDown = useCallback(
     (event) => {
-      if (event.key === "Enter" && !event.shiftKey && !isComposing && !isMobile) {
+      if (
+        event.key === "Enter" &&
+        !event.shiftKey &&
+        !isComposing &&
+        !isTouch
+      ) {
         event.preventDefault();
         sendMessage(inputText);
       }
     },
-    [inputText, isComposing, isMobile, sendMessage]
+    [inputText, isComposing, isTouch, sendMessage]
   );
 
   const adjustTextareaHeight = useCallback(() => {
@@ -306,15 +391,35 @@ function Main({ addConversation, isMobile }) {
                 <AnimatePresence>
                   {uploadedFiles.map((file) => (
                     <motion.div
-                      key={file.name + file.lastModified}
+                      key={file.id}
                       className="file-wrap"
                       initial={{ y: 4, opacity: 0 }}
                       animate={{ y: 0, opacity: 1 }}
                       exit={{ y: 4, opacity: 0 }}
                       transition={{ duration: 0.3 }}
+                      style={{ position: "relative" }}
                     >
                       <div className="file-object">
                         <span className="file-name">{file.name}</span>
+                        {file.isUploading && (
+                          <div
+                            className="file-upload-overlay"
+                            style={{
+                              position: "absolute",
+                              top: 0,
+                              left: 0,
+                              right: 0,
+                              bottom: 0,
+                              display: "flex",
+                              justifyContent: "center",
+                              alignItems: "center",
+                              backgroundColor: "rgba(255,255,255,0.8)",
+                              zIndex: 2,
+                            }}
+                          >
+                            <ClipLoader size={20} />
+                          </div>
+                        )}
                       </div>
                       <BiX
                         className="file-delete"
@@ -344,7 +449,9 @@ function Main({ addConversation, isMobile }) {
               <GoPlus style={{ strokeWidth: 0.5 }} />
             </div>
             <div
-              className={`function-button ${isSearch ? "active" : ""}`}
+              className={`function-button ${
+                isImage ? "disabled" : isSearch ? "active" : ""
+              }`}
               onClick={() => {
                 const newSearch = !isSearch;
                 setIsSearch(newSearch);
@@ -358,7 +465,7 @@ function Main({ addConversation, isMobile }) {
               검색
             </div>
             <div
-              className={`function-button ${isImage ? "disabled" : isInference ? "active" : ""}`}
+              className={`function-button ${isInference ? "active" : ""}`}
               onClick={() => {
                 const newInference = !isInference;
                 setIsInference(newInference);
@@ -373,7 +480,7 @@ function Main({ addConversation, isMobile }) {
             </div>
             <div
               className={`function-button ${
-                modelType !== "none" ? (isDAN ? "active" : "") : "disabled"
+                modelType === "none" ? "disabled" : isDAN ? "active" : ""
               }`}
               onClick={() => {
                 if (modelType !== "none") {
@@ -390,7 +497,7 @@ function Main({ addConversation, isMobile }) {
         <button
           className="send-button"
           onClick={() => sendMessage(inputText)}
-          disabled={!inputText.trim() && !isLoading}
+          disabled={(uploadedFiles.some((file) => file.isUploading))}
           aria-label={isLoading ? "전송 중단" : "메시지 전송"}
         >
           {isLoading ? (
@@ -410,33 +517,16 @@ function Main({ addConversation, isMobile }) {
         multiple
         ref={fileInputRef}
         style={{ display: "none" }}
-        onChange={(e) => {
-          const maxAllowed = 5;
+        onChange={async (e) => {
           const files = Array.from(e.target.files);
-          setUploadedFiles((prev) => {
-            const remaining = maxAllowed - prev.length;
-            const newFilesUnique = [];
-            const seen = new Set();
-            files.forEach((file) => {
-              const id = getFileId(file);
-              if (!prev.some((f) => getFileId(f) === id) && !seen.has(id)) {
-                seen.add(id);
-                newFilesUnique.push(file);
-              }
-            });
-            if (newFilesUnique.length > remaining) {
-              setModalError("업로드 가능한 파일 개수를 초과했습니다.");
-              setTimeout(() => setModalError(null), 3000);
-            }
-            return [...prev, ...newFilesUnique.slice(0, remaining)];
-          });
+          await processFiles(files);
           e.target.value = "";
         }}
       />
 
       <AnimatePresence>
         {isDragActive && (
-          <motion.div 
+          <motion.div
             key="drag-overlay"
             className="drag-overlay"
             initial={{ opacity: 0 }}
@@ -450,16 +540,16 @@ function Main({ addConversation, isMobile }) {
       </AnimatePresence>
 
       <AnimatePresence>
-        {modalError && (
+        {errorModal && (
           <motion.div
             className="error-modal"
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
+            initial={{ opacity: 0, y: -20, x: "-50%" }}
+            animate={{ opacity: 1, y: 0, x: "-50%" }}
+            exit={{ opacity: 0, y: -20, x: "-50%" }}
             transition={{ duration: 0.3 }}
           >
-            <CiWarning style={{ marginRight: '4px', fontSize: '16px' }} />
-            {modalError}
+            <CiWarning style={{ marginRight: "4px", fontSize: "16px" }} />
+            {errorModal}
           </motion.div>
         )}
       </AnimatePresence>

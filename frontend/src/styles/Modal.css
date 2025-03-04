@@ -55,7 +55,6 @@
     position: fixed;
     top: 20px;
     left: 50%;
-    transform: translateX(-50%) !important;
     background: rgb(239, 68, 68);
     color: #fff;
     padding: 10px 20px;

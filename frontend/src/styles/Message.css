@@ -94,10 +94,6 @@
   transition: opacity 0.2s;
 }
 
-.message-function.user {
-  gap: 7px;
-}
-
 .message-function .function-button {
   stroke-width: 0.5;
   transition: color 0.2s;
@@ -251,7 +247,7 @@ code {
   }
 
   .chat-message.user {
-    margin-right: 0;
+    margin-right: 5px;
   }
 
   .chat-message ol, ul {
@@ -260,10 +256,9 @@ code {
 
   .message-file-area .image-object {
     width: 260px;
-    margin: 0 14px 3px 14px;
   }
-
+  
   .message-file-area .file-object, .message-file-area .image-object {
-    margin: 0 0 3px 0;
+    margin: 0 5px 2px 0;
   }
 }

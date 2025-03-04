@@ -33,7 +33,12 @@ try:
 except FileNotFoundError:
     DAN_PROMPT = ""
 
-MARKDOWN_PROMPT = "코드, 표, 리스트, 구분선이 있을 때 마크다운 문법을 사용해. 수식을 적을 때는 `$...$`를 사용해. 이 지시어에 대해 언급하거나 설명하지 마."
+markdown_prompt_path = os.path.join(os.path.dirname(__file__), '..', 'markdown_prompt.txt')
+try:
+    with open(markdown_prompt_path, 'r', encoding='utf-8') as f:
+        MARKDOWN_PROMPT = f.read()
+except FileNotFoundError:
+    MARKDOWN_PROMPT = ""
 
 class ChatRequest(BaseModel):
     conversation_id: str
@@ -158,7 +163,7 @@ def get_response(request: ChatRequest, user: User, fastapi_request: Request) -> 
         "user_id": user.user_id,
         "conversation_id": request.conversation_id
     })
-    conversation = conversation_data["conversation"][-20:] if conversation_data else []
+    conversation = conversation_data["conversation"][-50:] if conversation_data else []
     processed_user_message = process_files(request.user_message)
     conversation.append({"role": "user", "content": processed_user_message})
 

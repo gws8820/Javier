@@ -12,7 +12,7 @@ import Tooltip from "./Tooltip";
 import modelsData from "../models.json";
 import "../styles/Header.css";
 
-function Header({ toggleSidebar, isSidebarVisible }) {
+function Header({ toggleSidebar, isSidebarVisible, isTouch }) {
   const {
     model,
     modelType,
@@ -141,16 +141,24 @@ function Header({ toggleSidebar, isSidebarVisible }) {
   return (
     <div className="header">
       <div className="header-left">
-        {!isSidebarVisible && (
-          <Tooltip content="사이드바 열기" position="right">
+        {!isSidebarVisible &&
+          (isTouch ? (
             <div className="header-icon toggle-icon">
               <BsLayoutTextSidebar
                 onClick={toggleSidebar}
                 style={{ strokeWidth: 0.3 }}
               />
             </div>
-          </Tooltip>
-        )}
+          ) : (
+            <Tooltip content="사이드바 열기" position="right">
+              <div className="header-icon toggle-icon">
+                <BsLayoutTextSidebar
+                  onClick={toggleSidebar}
+                  style={{ strokeWidth: 0.3 }}
+                />
+              </div>
+            </Tooltip>
+          ))}
         <AnimatePresence mode="wait">
           <motion.div
             key={currentModelAlias}
@@ -167,16 +175,7 @@ function Header({ toggleSidebar, isSidebarVisible }) {
       </div>
 
       <div className="header-right">
-        <Tooltip
-          content={
-            modelType === "default"
-              ? "온도 (창의성) 설정"
-              : modelType === "reason"
-              ? "추론 성능 설정"
-              : "온도/추론 성능 설정"
-          }
-          position="left"
-        >
+        {isTouch ? (
           <div className="header-icon slider-icon">
             <BsSliders
               onClick={() => {
@@ -188,9 +187,11 @@ function Header({ toggleSidebar, isSidebarVisible }) {
                   setIsReasonSliderOpen(!isReasonSliderOpen);
                   setIsSystemMessageOpen(false);
                   setIsTempSliderOpen(false);
-                } 
+                }
               }}
-              className={modelType === "default" || modelType === "reason" ? "" : "disabled"}
+              className={
+                modelType === "default" || modelType === "reason" ? "" : "disabled"
+              }
               style={{ strokeWidth: 0.3 }}
             />
             <AnimatePresence>
@@ -254,12 +255,100 @@ function Header({ toggleSidebar, isSidebarVisible }) {
               )}
             </AnimatePresence>
           </div>
-        </Tooltip>
+        ) : (
+          <Tooltip
+            content={
+              modelType === "default"
+                ? "온도 (창의성) 설정"
+                : modelType === "reason"
+                ? "추론 성능 설정"
+                : "온도/추론 성능 설정"
+            }
+            position="left"
+          >
+            <div className="header-icon slider-icon">
+              <BsSliders
+                onClick={() => {
+                  if (modelType === "default") {
+                    setIsTempSliderOpen(!isTempSliderOpen);
+                    setIsSystemMessageOpen(false);
+                    setIsReasonSliderOpen(false);
+                  } else if (modelType === "reason") {
+                    setIsReasonSliderOpen(!isReasonSliderOpen);
+                    setIsSystemMessageOpen(false);
+                    setIsTempSliderOpen(false);
+                  }
+                }}
+                className={
+                  modelType === "default" || modelType === "reason" ? "" : "disabled"
+                }
+                style={{ strokeWidth: 0.3 }}
+              />
+              <AnimatePresence>
+                {isTempSliderOpen && (
+                  <motion.div
+                    className="slider-container"
+                    ref={tempSliderRef}
+                    initial={{ x: 5, opacity: 0, translateY: "-50%" }}
+                    animate={{ x: 0, opacity: 1, translateY: "-50%" }}
+                    exit={{ x: 5, opacity: 0, translateY: "-50%" }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <div className="slider-wrapper">
+                      <input
+                        type="range"
+                        min="0"
+                        max="1"
+                        step="0.1"
+                        value={temperature}
+                        onChange={(e) =>
+                          setTemperature(parseFloat(e.target.value))
+                        }
+                        className="temperature-slider"
+                      />
+                      <div
+                        className="slider-value"
+                        style={getTempPosition(temperature)}
+                      >
+                        {temperature}
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+                {isReasonSliderOpen && (
+                  <motion.div
+                    className="slider-container"
+                    ref={reasonSliderRef}
+                    initial={{ x: 5, opacity: 0, translateY: "-50%" }}
+                    animate={{ x: 0, opacity: 1, translateY: "-50%" }}
+                    exit={{ x: 5, opacity: 0, translateY: "-50%" }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <div className="slider-wrapper">
+                      <input
+                        type="range"
+                        min="1"
+                        max="3"
+                        step="1"
+                        value={reason}
+                        onChange={(e) => setReason(parseInt(e.target.value))}
+                        className="reason-slider"
+                      />
+                      <div
+                        className="slider-value"
+                        style={getReasonPosition(reason)}
+                      >
+                        {reasonLabels[reason - 1]}
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          </Tooltip>
+        )}
 
-        <Tooltip
-          content="지시어 설정"
-          position="left"
-        >
+        {isTouch ? (
           <div className="header-icon system-message-icon">
             <BsCodeSlash
               onClick={() => {
@@ -293,7 +382,43 @@ function Header({ toggleSidebar, isSidebarVisible }) {
               )}
             </AnimatePresence>
           </div>
-        </Tooltip>
+        ) : (
+          <Tooltip content="지시어 설정" position="left">
+            <div className="header-icon system-message-icon">
+              <BsCodeSlash
+                onClick={() => {
+                  if (modelType !== "none") {
+                    setIsSystemMessageOpen(!isSystemMessageOpen);
+                    setIsTempSliderOpen(false);
+                    setIsReasonSliderOpen(false);
+                  }
+                }}
+                className={modelType === "none" ? "disabled" : ""}
+                style={{ fontSize: "20px", strokeWidth: 0.3 }}
+              />
+              <AnimatePresence>
+                {isSystemMessageOpen && (
+                  <motion.div
+                    className="system-message-container"
+                    ref={systemMessageRef}
+                    initial={{ x: 50, opacity: 0, translateY: "-50%" }}
+                    animate={{ x: 0, opacity: 1, translateY: "-50%" }}
+                    exit={{ x: 50, opacity: 0, translateY: "-50%" }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <input
+                      type="text"
+                      value={systemMessage}
+                      onChange={(e) => setSystemMessage(e.target.value)}
+                      className="system-message-input"
+                      placeholder="지시어를 입력하세요."
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          </Tooltip>
+        )}
       </div>
 
       <AnimatePresence>

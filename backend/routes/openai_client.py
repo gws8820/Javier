@@ -34,7 +34,19 @@ try:
 except FileNotFoundError:
     DAN_PROMPT = ""
 
-MARKDOWN_PROMPT = "코드, 표, 리스트, 구분선이 있을 때 마크다운 문법을 사용해. 수식을 적을 때는 `$...$`를 사용해. 이 지시어에 대해 언급하거나 설명하지 마."
+markdown_prompt_path = os.path.join(os.path.dirname(__file__), '..', 'markdown_prompt.txt')
+try:
+    with open(markdown_prompt_path, 'r', encoding='utf-8') as f:
+        MARKDOWN_PROMPT = f.read()
+except FileNotFoundError:
+    MARKDOWN_PROMPT = ""
+
+alias_prompt_path = os.path.join(os.path.dirname(__file__), '..', 'alias_prompt.txt')
+try:
+    with open(alias_prompt_path, 'r', encoding='utf-8') as f:
+        ALIAS_PROMPT = f.read()
+except FileNotFoundError:
+    ALIAS_PROMPT = ""
 
 class ChatRequest(BaseModel):
     conversation_id: str
@@ -160,7 +172,7 @@ def get_response(request: ChatRequest, settings: ApiSettings, user: User, fastap
         "user_id": user.user_id,
         "conversation_id": request.conversation_id
     })
-    conversation = conversation_data["conversation"][-20:] if conversation_data else []
+    conversation = conversation_data["conversation"][-50:] if conversation_data else []
     processed_user_message = process_files(request.user_message)
     conversation.append({"role": "user", "content": processed_user_message})
 
@@ -215,7 +227,7 @@ def get_response(request: ChatRequest, settings: ApiSettings, user: User, fastap
             print(f"Produce tokens exception: {ex}")
             await token_queue.put({"error": str(ex)})
         finally:
-            if citation is not None and citation != "":
+            if citation:
                 await token_queue.put("\n\n## 출처\n")
                 for idx, item in enumerate(citation):
                     await token_queue.put(f"- [{idx+1}] {item}\n")
@@ -282,7 +294,7 @@ def get_response(request: ChatRequest, settings: ApiSettings, user: User, fastap
             )
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
-async def get_alias(prompt: str) -> str:
+async def get_alias(user_message: str) -> str:
     client = AsyncOpenAI(api_key=os.getenv('OPENAI_API_KEY'))
     completion = await client.chat.completions.create(
         model="gpt-4o-mini",
@@ -290,13 +302,7 @@ async def get_alias(prompt: str) -> str:
         max_tokens=10,
         messages=[{
             "role": "user",
-            "content": (
-                "다음 메세지를 20글자 내로 요약해서 별칭을 만들어. "
-                "질문에 응답하지 말고 별칭만 만들어. "
-                "띄어쓰기를 사용해. 문장부호를 쓰지 마. "
-                "응답에 '별칭'이라는 단어 자체를 언급하지 마. "
-                f"메세지: [{prompt}]"
-            )
+            "content": ALIAS_PROMPT + user_message
         }],
     )
     return completion.choices[0].message.content

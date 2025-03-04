@@ -31,7 +31,7 @@ app.include_router(anthropic_client.router)
 
 @app.get("/")
 def read_root():
-    return {"message": "서비스 동작 중"}
+    return {"message": "Service is Running"}
 
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "images")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -43,7 +43,7 @@ async def upload_image(file: UploadFile = File(...)):
     try:
         image = Image.open(io.BytesIO(contents))
     except Exception:
-        return {"error": "이미지 파일을 읽을 수 없습니다."}
+        return {"error": "Can't Read Image File"}
 
     image = ImageOps.exif_transpose(image)
 
@@ -68,7 +68,7 @@ async def upload_image(file: UploadFile = File(...)):
         f.write(buffer.getvalue())
 
     return {
-        "info": "파일 저장 성공",
+        "info": "File Successfully Uploaded",
         "file_name": new_filename,
         "file_path": f"/images/{new_filename}"
     }

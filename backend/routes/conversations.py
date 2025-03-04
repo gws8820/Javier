@@ -53,25 +53,6 @@ async def get_conversations(current_user: User = Depends(get_current_user)):
         })
     return {"conversations": conversations}
 
-@router.put("/conversation/{conversation_id}/rename", response_model=dict)
-async def rename_conversation(
-    conversation_id: str,
-    request: RenameRequest,
-    current_user: User = Depends(get_current_user)
-):
-    user_id = current_user.user_id
-    result = await conversations_collection.update_one(
-        {"user_id": user_id, "conversation_id": conversation_id},
-        {"$set": {"alias": request.alias}}
-    )
-    if result.matched_count == 0:
-        raise HTTPException(status_code=404, detail="Conversation not found")
-    return {
-        "message": "Conversation renamed successfully",
-        "conversation_id": conversation_id,
-        "new_alias": request.alias
-    }
-
 @router.get("/conversation/{conversation_id}", response_model=dict)
 async def get_conversation(conversation_id: str, current_user: User = Depends(get_current_user)):
     user_id = current_user.user_id
@@ -111,6 +92,25 @@ async def create_new_conversation(request_data: NewConversationRequest, current_
         "message": "New conversation created",
         "alias": alias,
         "conversation_id": conversation_id
+    }
+
+@router.put("/conversation/{conversation_id}/rename", response_model=dict)
+async def rename_conversation(
+    conversation_id: str,
+    request: RenameRequest,
+    current_user: User = Depends(get_current_user)
+):
+    user_id = current_user.user_id
+    result = await conversations_collection.update_one(
+        {"user_id": user_id, "conversation_id": conversation_id},
+        {"$set": {"alias": request.alias}}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    return {
+        "message": "Conversation renamed successfully",
+        "conversation_id": conversation_id,
+        "new_alias": request.alias
     }
 
 @router.delete("/conversation/all", response_model=dict)
